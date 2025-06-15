@@ -3,28 +3,24 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8905C6FB1986CDC5007C60B6 /* libXOPSupport.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8905C6FA1986CDC5007C60B6 /* libXOPSupport.a */; };
-		8905C6FD1986CE86007C60B6 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8905C6FC1986CE86007C60B6 /* AudioToolbox.framework */; };
+		7DB755ED2DFCDBDC00DBC1D5 /* ProjectImage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7DB755EC2DFCDBDC00DBC1D5 /* ProjectImage.cpp */; };
+		7DB755EE2DFCDBDC00DBC1D5 /* LSMUtilties.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7DB755EA2DFCDBDC00DBC1D5 /* LSMUtilties.cpp */; };
+		7DB755EF2DFCDBDC00DBC1D5 /* ParseWavePath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7DB755EB2DFCDBDC00DBC1D5 /* ParseWavePath.cpp */; };
+		7DB755F02DFCDBDC00DBC1D5 /* Filter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7DB755E82DFCDBDC00DBC1D5 /* Filter.cpp */; };
+		7DB755F12DFCDBDC00DBC1D5 /* Kalman.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7DB755E92DFCDBDC00DBC1D5 /* Kalman.cpp */; };
 		8905C7001986CF5C007C60B6 /* twoPhoton_Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 32BAE0B30371A71500C91783 /* twoPhoton_Prefix.pch */; };
 		8905C7011986CF5C007C60B6 /* twoPhoton.h in Headers */ = {isa = PBXBuildFile; fileRef = 89A72A671090477B003AE340 /* twoPhoton.h */; };
 		8905C7031986CF5C007C60B6 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C167DFE841241C02AAC07 /* InfoPlist.strings */; };
 		8905C7051986CF5C007C60B6 /* twoPhoton.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AA53F5620587C7410055F2C1 /* twoPhoton.cpp */; };
 		8905C7071986CF5C007C60B6 /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 08EA7FFBFE8413EDC02AAC07 /* Carbon.framework */; };
 		8905C7091986CF5C007C60B6 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8905C6FC1986CE86007C60B6 /* AudioToolbox.framework */; };
-		8905C70B1986CF5C007C60B6 /* twoPhoton.r in Rez */ = {isa = PBXBuildFile; fileRef = AA53F5630587C7410055F2C1 /* twoPhoton.r */; };
+		8905C70B1986CF5C007C60B6 /* twoPhoton.r in Resources */ = {isa = PBXBuildFile; fileRef = AA53F5630587C7410055F2C1 /* twoPhoton.r */; };
 		8905C7151986D0C1007C60B6 /* libXOPSupport64.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8905C7141986D0C1007C60B6 /* libXOPSupport64.a */; };
-		893D595E1C330E96005CBDA1 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 893D595D1C330E96005CBDA1 /* Cocoa.framework */; };
 		893D595F1C330E96005CBDA1 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 893D595D1C330E96005CBDA1 /* Cocoa.framework */; };
-		89A72A681090477B003AE340 /* twoPhoton.h in Headers */ = {isa = PBXBuildFile; fileRef = 89A72A671090477B003AE340 /* twoPhoton.h */; };
-		8D01CCC80486CAD60068D4B7 /* twoPhoton_Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 32BAE0B30371A71500C91783 /* twoPhoton_Prefix.pch */; };
-		8D01CCCA0486CAD60068D4B7 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C167DFE841241C02AAC07 /* InfoPlist.strings */; };
-		8D01CCCE0486CAD60068D4B7 /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 08EA7FFBFE8413EDC02AAC07 /* Carbon.framework */; };
-		AA53F5640587C7410055F2C1 /* twoPhoton.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AA53F5620587C7410055F2C1 /* twoPhoton.cpp */; };
-		AA53F5650587C7410055F2C1 /* twoPhoton.r in Rez */ = {isa = PBXBuildFile; fileRef = AA53F5630587C7410055F2C1 /* twoPhoton.r */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -37,32 +33,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AA53F57A0587C83E0055F2C1 /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = Contents;
-			dstSubfolderSpec = 1;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		089C167EFE841241C02AAC07 /* English */ = {isa = PBXFileReference; fileEncoding = 10; lastKnownFileType = text.plist.strings; name = English; path = English.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		08EA7FFBFE8413EDC02AAC07 /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = /System/Library/Frameworks/Carbon.framework; sourceTree = "<absolute>"; };
 		32BAE0B30371A71500C91783 /* twoPhoton_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = twoPhoton_Prefix.pch; sourceTree = "<group>"; };
-		8905C6FA1986CDC5007C60B6 /* libXOPSupport.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libXOPSupport.a; path = ../../XOPSupport/Xcode/libXOPSupport.a; sourceTree = SOURCE_ROOT; };
+		7DB755E82DFCDBDC00DBC1D5 /* Filter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Filter.cpp; path = ../Filter.cpp; sourceTree = SOURCE_ROOT; };
+		7DB755E92DFCDBDC00DBC1D5 /* Kalman.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Kalman.cpp; path = ../Kalman.cpp; sourceTree = SOURCE_ROOT; };
+		7DB755EA2DFCDBDC00DBC1D5 /* LSMUtilties.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = LSMUtilties.cpp; path = ../LSMUtilties.cpp; sourceTree = SOURCE_ROOT; };
+		7DB755EB2DFCDBDC00DBC1D5 /* ParseWavePath.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ParseWavePath.cpp; path = ../ParseWavePath.cpp; sourceTree = SOURCE_ROOT; };
+		7DB755EC2DFCDBDC00DBC1D5 /* ProjectImage.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ProjectImage.cpp; path = ../ProjectImage.cpp; sourceTree = SOURCE_ROOT; };
 		8905C6FC1986CE86007C60B6 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = /System/Library/Frameworks/AudioToolbox.framework; sourceTree = "<absolute>"; };
 		8905C7111986CF5C007C60B6 /* twoPhoton64.xop */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = twoPhoton64.xop; sourceTree = BUILT_PRODUCTS_DIR; };
 		8905C7131986D076007C60B6 /* Info64.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info64.plist; sourceTree = SOURCE_ROOT; };
 		8905C7141986D0C1007C60B6 /* libXOPSupport64.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libXOPSupport64.a; path = ../../XOPSupport/Xcode/libXOPSupport64.a; sourceTree = SOURCE_ROOT; };
 		893D595D1C330E96005CBDA1 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = /Work/XOPDev/IgorXOPs7/twoPhoton/Xcode/../../../../../System/Library/Frameworks/Cocoa.framework; sourceTree = "<absolute>"; };
+		89A1110C26B833C900260D21 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		89A72A671090477B003AE340 /* twoPhoton.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = twoPhoton.h; path = ../twoPhoton.h; sourceTree = SOURCE_ROOT; };
-		89AF3BB31E5945CC00FCA86A /* twoPhotonWinCustom.rc */ = {isa = PBXFileReference; lastKnownFileType = text; name = twoPhotonWinCustom.rc; path = ../twoPhotonWinCustom.rc; sourceTree = "<group>"; };
-		89AF3BB41E5945E300FCA86A /* twoPhoton.rc */ = {isa = PBXFileReference; lastKnownFileType = text; name = twoPhoton.rc; path = ../twoPhoton.rc; sourceTree = "<group>"; };
-		8D01CCD10486CAD60068D4B7 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		8D01CCD20486CAD60068D4B7 /* twoPhoton.xop */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = twoPhoton.xop; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA53F5620587C7410055F2C1 /* twoPhoton.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = twoPhoton.cpp; path = ../twoPhoton.cpp; sourceTree = SOURCE_ROOT; };
 		AA53F5630587C7410055F2C1 /* twoPhoton.r */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.rez; name = twoPhoton.r; path = ../twoPhoton.r; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
@@ -76,17 +63,6 @@
 				8905C7071986CF5C007C60B6 /* Carbon.framework in Frameworks */,
 				8905C7091986CF5C007C60B6 /* AudioToolbox.framework in Frameworks */,
 				8905C7151986D0C1007C60B6 /* libXOPSupport64.a in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		8D01CCCD0486CAD60068D4B7 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				893D595E1C330E96005CBDA1 /* Cocoa.framework in Frameworks */,
-				8D01CCCE0486CAD60068D4B7 /* Carbon.framework in Frameworks */,
-				8905C6FB1986CDC5007C60B6 /* libXOPSupport.a in Frameworks */,
-				8905C6FD1986CE86007C60B6 /* AudioToolbox.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -110,7 +86,6 @@
 				893D595D1C330E96005CBDA1 /* Cocoa.framework */,
 				08EA7FFBFE8413EDC02AAC07 /* Carbon.framework */,
 				8905C6FC1986CE86007C60B6 /* AudioToolbox.framework */,
-				8905C6FA1986CDC5007C60B6 /* libXOPSupport.a */,
 				8905C7141986D0C1007C60B6 /* libXOPSupport64.a */,
 			);
 			name = "External Frameworks and Libraries";
@@ -120,9 +95,6 @@
 			isa = PBXGroup;
 			children = (
 				AA53F5630587C7410055F2C1 /* twoPhoton.r */,
-				89AF3BB41E5945E300FCA86A /* twoPhoton.rc */,
-				89AF3BB31E5945CC00FCA86A /* twoPhotonWinCustom.rc */,
-				8D01CCD10486CAD60068D4B7 /* Info.plist */,
 				8905C7131986D076007C60B6 /* Info64.plist */,
 				089C167DFE841241C02AAC07 /* InfoPlist.strings */,
 			);
@@ -132,6 +104,11 @@
 		08FB77ADFE841716C02AAC07 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				7DB755E82DFCDBDC00DBC1D5 /* Filter.cpp */,
+				7DB755E92DFCDBDC00DBC1D5 /* Kalman.cpp */,
+				7DB755EA2DFCDBDC00DBC1D5 /* LSMUtilties.cpp */,
+				7DB755EB2DFCDBDC00DBC1D5 /* ParseWavePath.cpp */,
+				7DB755EC2DFCDBDC00DBC1D5 /* ProjectImage.cpp */,
 				32BAE0B30371A71500C91783 /* twoPhoton_Prefix.pch */,
 				89A72A671090477B003AE340 /* twoPhoton.h */,
 				AA53F5620587C7410055F2C1 /* twoPhoton.cpp */,
@@ -142,7 +119,6 @@
 		19C28FB4FE9D528D11CA2CBB /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				8D01CCD20486CAD60068D4B7 /* twoPhoton.xop */,
 				8905C7111986CF5C007C60B6 /* twoPhoton64.xop */,
 			);
 			name = Products;
@@ -160,15 +136,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		8D01CCC70486CAD60068D4B7 /* Headers */ = {
-			isa = PBXHeadersBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				8D01CCC80486CAD60068D4B7 /* twoPhoton_Prefix.pch in Headers */,
-				89A72A681090477B003AE340 /* twoPhoton.h in Headers */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
@@ -180,7 +147,6 @@
 				8905C7021986CF5C007C60B6 /* Resources */,
 				8905C7041986CF5C007C60B6 /* Sources */,
 				8905C7061986CF5C007C60B6 /* Frameworks */,
-				8905C70A1986CF5C007C60B6 /* Rez */,
 				8905C70C1986CF5C007C60B6 /* CopyFiles */,
 			);
 			buildRules = (
@@ -193,50 +159,27 @@
 			productReference = 8905C7111986CF5C007C60B6 /* twoPhoton64.xop */;
 			productType = "com.apple.product-type.bundle";
 		};
-		8D01CCC60486CAD60068D4B7 /* twoPhoton */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 89CFE738093E73F4002BBDEE /* Build configuration list for PBXNativeTarget "twoPhoton" */;
-			buildPhases = (
-				8D01CCC70486CAD60068D4B7 /* Headers */,
-				8D01CCC90486CAD60068D4B7 /* Resources */,
-				8D01CCCB0486CAD60068D4B7 /* Sources */,
-				8D01CCCD0486CAD60068D4B7 /* Frameworks */,
-				8D01CCCF0486CAD60068D4B7 /* Rez */,
-				AA53F57A0587C83E0055F2C1 /* CopyFiles */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = twoPhoton;
-			productInstallPath = "$(HOME)/Library/Bundles";
-			productName = twoPhoton;
-			productReference = 8D01CCD20486CAD60068D4B7 /* twoPhoton.xop */;
-			productType = "com.apple.product-type.bundle";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		089C1669FE841209C02AAC07 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 1000;
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1630;
 			};
 			buildConfigurationList = 89CFE73C093E73F4002BBDEE /* Build configuration list for PBXProject "twoPhoton" */;
 			compatibilityVersion = "Xcode 3.2";
-			developmentRegion = English;
+			developmentRegion = en;
 			hasScannedForEncodings = 1;
 			knownRegions = (
-				English,
-				Japanese,
-				French,
-				German,
+				en,
+				Base,
 			);
 			mainGroup = 089C166AFE841209C02AAC07 /* twoPhoton */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				8D01CCC60486CAD60068D4B7 /* twoPhoton */,
 				8905C6FE1986CF5C007C60B6 /* twoPhoton64 */,
 			);
 		};
@@ -247,38 +190,12 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8905C70B1986CF5C007C60B6 /* twoPhoton.r in Resources */,
 				8905C7031986CF5C007C60B6 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		8D01CCC90486CAD60068D4B7 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				8D01CCCA0486CAD60068D4B7 /* InfoPlist.strings in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXRezBuildPhase section */
-		8905C70A1986CF5C007C60B6 /* Rez */ = {
-			isa = PBXRezBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				8905C70B1986CF5C007C60B6 /* twoPhoton.r in Rez */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		8D01CCCF0486CAD60068D4B7 /* Rez */ = {
-			isa = PBXRezBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				AA53F5650587C7410055F2C1 /* twoPhoton.r in Rez */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXRezBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		8905C7041986CF5C007C60B6 /* Sources */ = {
@@ -286,14 +203,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				8905C7051986CF5C007C60B6 /* twoPhoton.cpp in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		8D01CCCB0486CAD60068D4B7 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				AA53F5640587C7410055F2C1 /* twoPhoton.cpp in Sources */,
+				7DB755ED2DFCDBDC00DBC1D5 /* ProjectImage.cpp in Sources */,
+				7DB755EE2DFCDBDC00DBC1D5 /* LSMUtilties.cpp in Sources */,
+				7DB755EF2DFCDBDC00DBC1D5 /* ParseWavePath.cpp in Sources */,
+				7DB755F02DFCDBDC00DBC1D5 /* Filter.cpp in Sources */,
+				7DB755F12DFCDBDC00DBC1D5 /* Kalman.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -303,7 +217,7 @@
 		089C167DFE841241C02AAC07 /* InfoPlist.strings */ = {
 			isa = PBXVariantGroup;
 			children = (
-				089C167EFE841241C02AAC07 /* English */,
+				89A1110C26B833C900260D21 /* en */,
 			);
 			name = InfoPlist.strings;
 			sourceTree = "<group>";
@@ -317,6 +231,7 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUGGING_SYMBOLS = YES;
 				EXPORTED_SYMBOLS_FILE = ./Exports.exp;
 				FRAMEWORK_SEARCH_PATHS = "";
@@ -331,16 +246,20 @@
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
 				GCC_WARN_UNKNOWN_PRAGMAS = NO;
 				GENERATE_PKGINFO = YES;
-				HEADER_SEARCH_PATHS = ../../XOPSupport;
+				HEADER_SEARCH_PATHS = "'/Users/jamie/Documents/WaveMetrics/XOP Toolkit 8/IgorXOPs8/XOPSupport'";
 				INFOPLIST_FILE = Info64.plist;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
-				LIBRARY_SEARCH_PATHS = ../../XOPSupport/Xcode;
+				LIBRARY_SEARCH_PATHS = "'/Users/jamie/Documents/WaveMetrics/XOP Toolkit 8/IgorXOPs8/XOPSupport'/**";
 				LIBRARY_STYLE = Bundle;
+				MACOSX_DEPLOYMENT_TARGET = 13.5;
+				ONLY_ACTIVE_ARCH = NO;
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
 				OTHER_REZFLAGS = "-i ../../XOPSupport";
 				PRODUCT_BUNDLE_IDENTIFIER = com.wavemetrics.xop.twoPhoton64;
 				PRODUCT_NAME = twoPhoton64;
+				REZ_SEARCH_PATHS = "'/Users/jamie/Documents/WaveMetrics/XOP Toolkit 8/IgorXOPs8/XOPSupport'/**";
+				"REZ_SEARCH_PATHS[sdk=*]" = "'/Users/jamie/Documents/WaveMetrics/XOP Toolkit 8/IgorXOPs8/XOPSupport'/**";
 				SECTORDER_FLAGS = "";
 				WARNING_CFLAGS = "-Wno-parentheses";
 				WRAPPER_EXTENSION = xop;
@@ -354,6 +273,8 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_TESTABILITY = YES;
 				EXPORTED_SYMBOLS_FILE = ./Exports.exp;
 				FRAMEWORK_SEARCH_PATHS = "";
 				GCC_ENABLE_TRIGRAPHS = NO;
@@ -365,16 +286,19 @@
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
 				GCC_WARN_UNKNOWN_PRAGMAS = NO;
 				GENERATE_PKGINFO = YES;
-				HEADER_SEARCH_PATHS = ../../XOPSupport;
+				HEADER_SEARCH_PATHS = "'/Users/jamie/Documents/WaveMetrics/XOP Toolkit 8/IgorXOPs8/XOPSupport'";
 				INFOPLIST_FILE = Info64.plist;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
-				LIBRARY_SEARCH_PATHS = ../../XOPSupport/Xcode;
+				LIBRARY_SEARCH_PATHS = "'/Users/jamie/Documents/WaveMetrics/XOP Toolkit 8/IgorXOPs8/XOPSupport'/**";
 				LIBRARY_STYLE = Bundle;
+				MACOSX_DEPLOYMENT_TARGET = 13.5;
+				ONLY_ACTIVE_ARCH = NO;
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
 				OTHER_REZFLAGS = "-i ../../XOPSupport";
 				PRODUCT_BUNDLE_IDENTIFIER = com.wavemetrics.xop.twoPhoton64;
 				PRODUCT_NAME = twoPhoton64;
+				REZ_SEARCH_PATHS = "'/Users/jamie/Documents/WaveMetrics/XOP Toolkit 8/IgorXOPs8/XOPSupport'/**";
 				SECTORDER_FLAGS = "";
 				WARNING_CFLAGS = "-Wno-parentheses";
 				WRAPPER_EXTENSION = xop;
@@ -387,6 +311,7 @@
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
 				EXPORTED_SYMBOLS_FILE = ./Exports.exp;
 				FRAMEWORK_SEARCH_PATHS = "";
 				GCC_ENABLE_TRIGRAPHS = NO;
@@ -398,123 +323,18 @@
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
 				GCC_WARN_UNKNOWN_PRAGMAS = NO;
 				GENERATE_PKGINFO = YES;
-				HEADER_SEARCH_PATHS = ../../XOPSupport;
+				HEADER_SEARCH_PATHS = "'/Users/jamie/Documents/WaveMetrics/XOP Toolkit 8/IgorXOPs8/XOPSupport'";
 				INFOPLIST_FILE = Info64.plist;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
-				LIBRARY_SEARCH_PATHS = ../../XOPSupport/Xcode;
+				LIBRARY_SEARCH_PATHS = "'/Users/jamie/Documents/WaveMetrics/XOP Toolkit 8/IgorXOPs8/XOPSupport'/**";
 				LIBRARY_STYLE = Bundle;
+				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
 				OTHER_REZFLAGS = "-i ../../XOPSupport";
 				PRODUCT_BUNDLE_IDENTIFIER = com.wavemetrics.xop.twoPhoton64;
 				PRODUCT_NAME = twoPhoton64;
-				SECTORDER_FLAGS = "";
-				WARNING_CFLAGS = "-Wno-parentheses";
-				WRAPPER_EXTENSION = xop;
-				ZERO_LINK = NO;
-			};
-			name = Default;
-		};
-		89CFE739093E73F4002BBDEE /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				COMBINE_HIDPI_IMAGES = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUGGING_SYMBOLS = YES;
-				EXPORTED_SYMBOLS_FILE = ./Exports.exp;
-				FRAMEWORK_SEARCH_PATHS = "";
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_ENABLE_TRIGRAPHS = NO;
-				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = twoPhoton_Prefix.pch;
-				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = NO;
-				GCC_WARN_ABOUT_MISSING_PROTOTYPES = NO;
-				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
-				GCC_WARN_UNKNOWN_PRAGMAS = NO;
-				GENERATE_PKGINFO = YES;
-				HEADER_SEARCH_PATHS = ../../XOPSupport;
-				INFOPLIST_FILE = Info.plist;
-				INSTALL_PATH = "$(HOME)/Library/Bundles";
-				LIBRARY_SEARCH_PATHS = ../../XOPSupport/Xcode;
-				LIBRARY_STYLE = Bundle;
-				OTHER_CFLAGS = "";
-				OTHER_LDFLAGS = "";
-				OTHER_REZFLAGS = "-i ../../XOPSupport";
-				PRODUCT_BUNDLE_IDENTIFIER = com.wavemetrics.xop.twoPhoton;
-				PRODUCT_NAME = twoPhoton;
-				SECTORDER_FLAGS = "";
-				WARNING_CFLAGS = "-Wno-parentheses";
-				WRAPPER_EXTENSION = xop;
-				ZERO_LINK = NO;
-			};
-			name = Debug;
-		};
-		89CFE73A093E73F4002BBDEE /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				COMBINE_HIDPI_IMAGES = YES;
-				COPY_PHASE_STRIP = YES;
-				EXPORTED_SYMBOLS_FILE = ./Exports.exp;
-				FRAMEWORK_SEARCH_PATHS = "";
-				GCC_ENABLE_TRIGRAPHS = NO;
-				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
-				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = twoPhoton_Prefix.pch;
-				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = NO;
-				GCC_WARN_ABOUT_MISSING_PROTOTYPES = NO;
-				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
-				GCC_WARN_UNKNOWN_PRAGMAS = NO;
-				GENERATE_PKGINFO = YES;
-				HEADER_SEARCH_PATHS = ../../XOPSupport;
-				INFOPLIST_FILE = Info.plist;
-				INSTALL_PATH = "$(HOME)/Library/Bundles";
-				LIBRARY_SEARCH_PATHS = ../../XOPSupport/Xcode;
-				LIBRARY_STYLE = Bundle;
-				OTHER_CFLAGS = "";
-				OTHER_LDFLAGS = "";
-				OTHER_REZFLAGS = "-i ../../XOPSupport";
-				PRODUCT_BUNDLE_IDENTIFIER = com.wavemetrics.xop.twoPhoton;
-				PRODUCT_NAME = twoPhoton;
-				SECTORDER_FLAGS = "";
-				WARNING_CFLAGS = "-Wno-parentheses";
-				WRAPPER_EXTENSION = xop;
-				ZERO_LINK = NO;
-			};
-			name = Release;
-		};
-		89CFE73B093E73F4002BBDEE /* Default */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				COMBINE_HIDPI_IMAGES = YES;
-				EXPORTED_SYMBOLS_FILE = ./Exports.exp;
-				FRAMEWORK_SEARCH_PATHS = "";
-				GCC_ENABLE_TRIGRAPHS = NO;
-				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
-				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = twoPhoton_Prefix.pch;
-				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = NO;
-				GCC_WARN_ABOUT_MISSING_PROTOTYPES = NO;
-				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
-				GCC_WARN_UNKNOWN_PRAGMAS = NO;
-				GENERATE_PKGINFO = YES;
-				HEADER_SEARCH_PATHS = ../../XOPSupport;
-				INFOPLIST_FILE = Info.plist;
-				INSTALL_PATH = "$(HOME)/Library/Bundles";
-				LIBRARY_SEARCH_PATHS = ../../XOPSupport/Xcode;
-				LIBRARY_STYLE = Bundle;
-				OTHER_CFLAGS = "";
-				OTHER_LDFLAGS = "";
-				OTHER_REZFLAGS = "-i ../../XOPSupport";
-				PRODUCT_BUNDLE_IDENTIFIER = com.wavemetrics.xop.twoPhoton;
-				PRODUCT_NAME = twoPhoton;
+				REZ_SEARCH_PATHS = "'/Users/jamie/Documents/WaveMetrics/XOP Toolkit 8/IgorXOPs8/XOPSupport'/**";
 				SECTORDER_FLAGS = "";
 				WARNING_CFLAGS = "-Wno-parentheses";
 				WRAPPER_EXTENSION = xop;
@@ -539,13 +359,17 @@
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				EXCLUDED_ARCHS = arm64;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_VERSION = "";
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -554,7 +378,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 			};
@@ -577,12 +401,16 @@
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				EXCLUDED_ARCHS = arm64;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_VERSION = "";
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -591,7 +419,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -613,12 +441,16 @@
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				EXCLUDED_ARCHS = arm64;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_VERSION = "";
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -627,7 +459,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
 				SDKROOT = macosx;
 			};
 			name = Default;
@@ -641,16 +473,6 @@
 				8905C70E1986CF5C007C60B6 /* Debug */,
 				8905C70F1986CF5C007C60B6 /* Release */,
 				8905C7101986CF5C007C60B6 /* Default */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Default;
-		};
-		89CFE738093E73F4002BBDEE /* Build configuration list for PBXNativeTarget "twoPhoton" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				89CFE739093E73F4002BBDEE /* Debug */,
-				89CFE73A093E73F4002BBDEE /* Release */,
-				89CFE73B093E73F4002BBDEE /* Default */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Default;
