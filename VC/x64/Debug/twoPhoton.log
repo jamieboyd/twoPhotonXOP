@@ -1,0 +1,3 @@
+﻿     Creating library x64\Debug\twoPhoton64.lib and object x64\Debug\twoPhoton64.exp
+LINK : warning LNK4098: defaultlib 'LIBCMT' conflicts with use of other libs; use /NODEFAULTLIB:library
+  twoPhoton.vcxproj -> C:\Users\jadob\OneDrive\Documents\WaveMetrics\XOP Toolkit 7\IgorXOPs7\twoPhoton\VC\twoPhoton64.xop
