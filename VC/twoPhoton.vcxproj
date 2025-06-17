@@ -317,10 +317,17 @@
       <FileType>Document</FileType>
     </Library>
     <Library Include="..\..\XOPSupport\pthreadVC2.lib">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </Library>
-    <Library Include="..\..\XOPSupport\pthread.lib" />
+    <Library Include="..\..\XOPSupport\pthreadVC264.lib">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </Library>
     <Library Include="..\..\XOPSupport\VC\XOPSupport.lib">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
@@ -333,10 +340,10 @@
     </Library>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\XOPSupport\pthread.h" />
-    <ClInclude Include="..\..\XOPSupport\sched.h" />
-    <ClInclude Include="..\..\XOPSupport\semaphore.h" />
     <ClInclude Include="..\ParseWavePath.h" />
+    <ClInclude Include="..\pthread.h" />
+    <ClInclude Include="..\sched.h" />
+    <ClInclude Include="..\semaphore.h" />
     <ClInclude Include="..\twoPhoton.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
