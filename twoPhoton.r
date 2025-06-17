@@ -64,8 +64,6 @@ resource 'STR#' (1100) {					/* custom error messages */
 	}
 };
 
-/* no menu item */
-
 resource 'XOPI' (1100) {
 	XOP_VERSION,							// XOP protocol version.
 	DEV_SYS_CODE,							// Code for development system used to make XOP

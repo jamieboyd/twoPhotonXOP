@@ -40,7 +40,7 @@ END
 BEGIN
 "-1\0",							// -1 means we don't want to add a menu item.
 "No Menu Item\0",				// Igor ignores item 2 because item 1 is -1.
-"twoPhoton.ihf\0",				// Name of XOP's help file.
+"twoPhotonXOP.ihf\0",				// Name of XOP's help file.
 0,								// NOTE: 0 required to terminate the resource.
 END
 
