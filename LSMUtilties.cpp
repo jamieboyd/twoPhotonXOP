@@ -3,8 +3,7 @@
 
 /**************************************************************************************************************
 Code specialized for Laser Scanning Microscope data acquisition
-Last Modified 2025/06/13 by Jamie Boyd */
-
+Last Modified 2025/06/18 by Jamie Boyd */
 /**************************************************************************************************************
 Structure to pass data to each SwapEvenThread
 Last Modified 2013/07/15 by Jamie Boyd */
@@ -102,27 +101,20 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
     IndexInt dataOffset;    //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
     CountInt lineLen;    // The length of each line in the image
     CountInt numLines;    // The number of lines in the file
-    
     int result;    // The error returned from various Wavemetrics functions
-    
     char* dataStartPtr;    // Pointer to start of data in input wave. Need to use char for these to use WM function to get data offset
-
     try {
         // Get handle to input wave. Make sure it exists.
         wavH = p->w1;
-        if (wavH == NULL)
-            throw result = NON_EXISTENT_WAVE;
+        if (wavH == NULL) throw result = NON_EXISTENT_WAVE;
         // Get wave data type.
         waveType = WaveType(wavH);
         // Can't process text waves
-        if (waveType == TEXT_WAVE_TYPE)
-            throw result = NOTEXTWAVES;
+        if (waveType == TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
         // Get number of used dimensions in wave.
-        if (result = MDGetWaveDimensions(wavH, &numDimensions, dimensionSizes))
-            throw result;
+        if (MDGetWaveDimensions(wavH, &numDimensions, dimensionSizes)) throw result = WAVEERROR_NOS;
         // Check that wave1 is 2D or 3D
-        if ((numDimensions == 1) || (numDimensions == 4))
-            throw result = INPUTNEEDS_2D3D_WAVE;
+        if ((numDimensions == 1) || (numDimensions == 4)) throw result = INPUTNEEDS_2D3D_WAVE;
         // Get dimension size info and calculate number of lines to process
         lineLen = dimensionSizes[0];
         if (numDimensions == 2){
@@ -130,16 +122,15 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
         }else{
             numLines = dimensionSizes[1] * dimensionSizes[2];
         }
-    }catch (int result){     //catch before locking any handles
-        p -> result = result;                // // XFUNC error code
-        return (result);
-    }try {
         // Get the offsets to the data in the wave
-        if (result = MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset))
-            throw result;
+        if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result = WAVEERROR_NOS;
     }catch (int result){
-        p -> result = result;
-        return (result);                // XFUNC error code.
+        p -> result = (double)(result - FIRST_XOP_ERR);
+#ifdef NO_IGOR_ERR
+        return (0);
+#else
+        return (result);
+#endif
     }
     dataStartPtr = (char*)(*wavH) + dataOffset;
     // Multi threading
@@ -168,8 +159,8 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
     // Free paramaterArray memory
     WMDisposePtr ((Ptr)paramArrayPtr);
     WaveHandleModified(wavH);            // Inform Igor that we have changed the input wave.
-    p -> result = result;                // // XFUNC error code will be 0
-    return (result);
+    p -> result = (0);                // // XFUNC error code will be 0
+    return (0);
 }
 
 /********************************************************************************************************************
@@ -324,8 +315,7 @@ double boxFactor; // number of pixels to be binned
 waveHndl w1;  //input wave - wave is overwritten
 Last Modified 2025/06/13 by Jamie Boyd */
 
-int DownSample (DownSampleParamsPtr p)
-{
+extern "C" int DownSample (DownSampleParamsPtr p) {
     int result = 0;    // The error returned from various Wavemetrics functions
     int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
     int numDimensions;    // number of dimensions in input  waves
@@ -339,28 +329,22 @@ int DownSample (DownSampleParamsPtr p)
     try{
         // Get handles to input wave. Make sure it exists.
         wavH = p->w1;
-        if (wavH == NIL)
-            throw result = NON_EXISTENT_WAVE;
+        if (wavH == NIL) throw result = NON_EXISTENT_WAVE;
         // Get wave data type.
         waveType = WaveType(wavH);
         // Can't process text waves
-        if (waveType == TEXT_WAVE_TYPE)
-            throw result = NOTEXTWAVES;
+        if (waveType == TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
         // Get number of used dimensions in wave.
-        if (result = MDGetWaveDimensions(wavH, &numDimensions, dimensionSizes))
-            throw result;
+        if (MDGetWaveDimensions(wavH, &numDimensions, dimensionSizes)) throw result = WAVEERROR_NOS;
         // Check that input is 2D or 3D
-        if ((numDimensions != 2) && (numDimensions!= 3))
-            throw result = INPUTNEEDS_2D3D_WAVE;
+        if ((numDimensions != 2) && (numDimensions!= 3)) throw result = INPUTNEEDS_2D3D_WAVE;
         // Check that Down sample type variable is o.k. 1 = average, 2 = sum, 3 = max, 4 = median
         DSType = (UInt8) p -> dsType;
-        if ((DSType > 4) || (DSType < 1))
-            throw result = BADDSTYPE;
+        if ((DSType > 4) || (DSType < 1)) throw result = BADDSTYPE;
         // Get dimension size info
         xSize = dimensionSizes[0];
         boxFactor = (UInt16) p ->boxFactor;
-        if (xSize % boxFactor)
-            throw result = BADFACTOR;
+        if (xSize % boxFactor) throw result = BADFACTOR;
         ySize = dimensionSizes [1];
         if (numDimensions == 2){
             points = xSize * ySize;
@@ -368,17 +352,19 @@ int DownSample (DownSampleParamsPtr p)
             zSize = dimensionSizes [2];
             points = xSize * ySize * zSize;
         }
-    }catch (int result){
-        p -> result = result;                // // XFUNC error code
-        return (result);
-    }try {
-        if (result = MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset))
-            throw result;
+        if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result = WAVEERROR_NOS;
         //make pointer to start of data
         dataStartPtr = (char*)(*wavH) + dataOffset;
         // call appropriate template function for the chosen downsample type for each wave type
-
-        switch (waveType) {
+    }catch (int result){
+        p -> result = (double)(result - FIRST_XOP_ERR);
+#ifdef NO_IGOR_ERR
+        return (0);
+#else
+        return (result);
+#endif
+    }
+    switch (waveType) {
         case NT_FP64:
             switch (DSType){
             case 1:    //average
@@ -507,49 +493,24 @@ int DownSample (DownSampleParamsPtr p)
                 break;
             }
             break;
-        default:    // Unknown data type - possible in a future version of Igor.
-            throw result = NT_FNOT_AVAIL;
-            break;
-        }    // end of switch
-
-        //catch before resetting handle
-    }catch (int result){
-        p -> result = result;    //XFUNC error code
-        return (result);
-    }try{
-        dimensionSizes [0] = xSize/boxFactor;
-        dimensionSizes [1] = ySize;
-        dimensionSizes [2] = zSize;
-        dimensionSizes [3] = 0;
-        if (result = MDChangeWave2 (wavH, -1, dimensionSizes, 1))
-            throw result;
-        WaveHandleModified (wavH);            // Inform Igor that we have changed the input wave.
-        p -> result = result;                //XFUNC error code will be 0
-        return (result);
-    }
-    // Catch block to return any errors that ocurred
-    catch (int result){
-        p -> result = result;
-        return (result);            // XFUNC error code (non-zero).
-    }
+    }    // end of switch
+    dimensionSizes [0] = xSize/boxFactor;
+    dimensionSizes [1] = ySize;
+    dimensionSizes [2] = zSize;
+    dimensionSizes [3] = 0;
+    MDChangeWave2 (wavH, -1, dimensionSizes, 1);
+    WaveHandleModified (wavH);            // Inform Igor that we have changed the input wave.
+    p -> result = (0);
+    return (0);
 }
 
 /****************************Decumulate Functions***********************************************************/
 // The following template is used to handle any one of the different types of wave data
-template <typename T> void DecumulateT(T *srcWaveStart, CountInt NumPnts, UInt32 epMax, UInt32 maxCount)
-{
+template <typename T> void DecumulateT(T *srcWaveStart, CountInt NumPnts, UInt32 epMax, UInt32 maxCount){
     T *srcWavePtr;
     // set srcWavePtr to last point in wave and work backwards
     for (srcWavePtr = srcWaveStart + NumPnts; srcWavePtr > srcWaveStart; srcWavePtr --){
-        // if value of current point > value of previous point, subtract value of previous point
-        if (*srcWavePtr >= (*(srcWavePtr -1)))
-            *srcWavePtr -= *(srcWavePtr -1);
-        else{ // counter rollover or missed count.
-            if ((*(srcWavePtr -1) > (maxCount - epMax)) && (*srcWavePtr < epMax)) //counter rollover
-                *srcWavePtr += (maxCount - (*(srcWavePtr -1)));
-            else //missed count. Set to neighboring good count. For now, anyway. maybe later reurn a list of bad count positions?
-                *srcWavePtr = *(srcWavePtr + 1);
-        }
+        *srcWavePtr -= *(srcWavePtr -1);
     }
 }
 
@@ -564,8 +525,7 @@ double bitSize;   //bitsize of the counter. expected to be either 24 or 32
 waveHndl w1;  // input wave - is overwritten
 Last Modified 2025/06/13 by Jamie Boyd
 ****************************************************************************************************************/
-int Decumulate (DecumulateParamsPtr p)
-{
+int Decumulate (DecumulateParamsPtr p) {
 
     int result = 0;    // The error returned from various Wavemetrics functions
     int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
@@ -581,22 +541,14 @@ int Decumulate (DecumulateParamsPtr p)
     try{
         // Get handle to input wave. Make sure it exists.
         wavH = p->w1;
-        if (wavH == NIL)
-            throw result = NON_EXISTENT_WAVE;
+        if (wavH == NIL) throw result = NON_EXISTENT_WAVE;
         //Get data type, no text waves
         waveType = WaveType(p->w1);
-        if (waveType==TEXT_WAVE_TYPE)
-            throw result = NOTEXTWAVES;
+        if (waveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
         // Get number of used dimensions in wave.
-        if (result = MDGetWaveDimensions(wavH, &numDimensions, dimensionSizes))
-            throw int (result);
-    }catch (int result){
-        p->result = result;        //XFUNC error code
-        return result;
-    }try{
+        if (MDGetWaveDimensions(wavH, &numDimensions, dimensionSizes)) throw result = WAVEERROR_NOS;
         // Get the offsets to the start of the data in the wave
-        if (result = MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset))
-            throw result;
+        if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result=WAVEERROR_NOS;
         //make pointer to stat of data
         srcWaveStart = (char*)(*wavH) + dataOffset;
         //Figure out how many points are in the wave

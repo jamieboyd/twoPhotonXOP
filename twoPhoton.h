@@ -1,4 +1,4 @@
-﻿/*
+/*
     twoP.h -- equates for twoP XOP
 */
 #ifndef TWOPHOTON_H_
@@ -8,8 +8,10 @@
 #include "XOPResources.h"                // Contains definition of XOP_TOOLKIT_VERSION
 #include "XOPStandardHeaders.h"            // Include ANSI headers, Mac headers, IgorXOP.h, XOP.h and XOPSupport.h
 
-/* twoP custom error codes */
 
+#define NO_IGOR_ERR    // when defined, all functions return 0 to avoid modal dialogs
+
+/* twoP custom error codes - also serve as return values from functions */
 #define OLD_IGOR 1 + FIRST_XOP_ERR
 #define NON_EXISTENT_WAVE 2 + FIRST_XOP_ERR
 #define INPUTNEEDS_3D_WAVE 3 + FIRST_XOP_ERR
@@ -24,7 +26,7 @@
 #define NO_INPUT_STRING 12 + FIRST_XOP_ERR
 #define BADFACTOR 13 + FIRST_XOP_ERR
 #define BADDSTYPE 14 + FIRST_XOP_ERR
-#define USERABORT 15 + FIRST_XOP_ERR
+#define WAVEERROR_NOS 15 + FIRST_XOP_ERR
 #define OVERWRITEALERT 16 + FIRST_XOP_ERR
 #define NOTEXTWAVES 17 + FIRST_XOP_ERR
 #define BADDIMENSION 18 + FIRST_XOP_ERR
@@ -32,12 +34,11 @@
 #define OUTPUTNEEDS_3D_WAVE 20 + FIRST_XOP_ERR
 #define BADWAVEINLIST 21 + FIRST_XOP_ERR
 #define BADSYMKERNEL 22 + FIRST_XOP_ERR
+#define NOTUNSIGNED 23 + FIRST_XOP_ERR
 
 // mnemonic defines
 #define OVERWRITE 1
 #define NO_OVERWITE 0
-#define SPINCURSOR 1
-#define NO_SPINCURSOR 0
 #define KILLOUTPUT 1
 #define NO_KILLOUTPUT 0
 
@@ -83,8 +84,9 @@ typedef struct KalmanAllFramesParams {
     double multiplier;    // Multiplier for,e.g., 16 bit waves containing less than 16 bits of data
     Handle outPutPath;    // A handle to a string containing path to output wave we want to make
     waveHndl inPutWaveH;    // handle to a 3D input wave
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
-}KalmanAllFramesParams, * KalmanAllFramesParamsPtr;
+}KalmanAllFramesParams, *KalmanAllFramesParamsPtr;
 
 typedef struct KalmanSpecFramesParams {
     double multiplier;    // Multiplier for 16 bit waves containing less than 16 bits of data
@@ -93,12 +95,14 @@ typedef struct KalmanSpecFramesParams {
     double endLayer;    // end of lyaers to average
     double startLayer;    // start of layers to average for input wave
     waveHndl inPutWaveH;// handle to input wave
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 }KalmanSpecFramesParams, * KalmanSpecFramesParamsPtr;
 
 typedef struct KalmanWaveToFrameParams {
     double multiplier;    // Multiplier for 16 bit waves containing less than 16 bits of data
     waveHndl inPutWaveH;// handle to input wave
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 } KalmanWaveToFrameParams, * KalmanWaveToFrameParamsPtr;
 
@@ -107,6 +111,7 @@ typedef struct KalmanListParams {
     double multiplier; // Multiplier for 16 bit waves containing less than 16 bits of data
     Handle outPutPath;    // path and wavename of output wave
     Handle inPutList;    //semicolon separated list of input waves, with paths
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 }KalmanListParams, * KalmanListParamsPtr;
 
@@ -114,6 +119,7 @@ typedef struct KalmanNextParams {
     double iKal; //which number of wave are we adding
     waveHndl outPutWaveH;//handle to output wave
     waveHndl inPutWaveH; // handle to output wave
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 }KalmanNextParams, * KalmanNextParamsPtr;
 
@@ -124,6 +130,7 @@ typedef struct ProjectAllFramesParams {
     double flatDimension;    //Which dimension we want to collapse on, 0 for x, 1 for y, 2 for z
     Handle outPutPath;    // A handle to a string containing path to output wave we want to make
     waveHndl inPutWaveH; //handle to the input wave
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 } ProjectAllFramesParams, * ProjectAllFramesParamsPtr;
 
@@ -135,6 +142,7 @@ typedef struct ProjectSpecFramesParams {
     double inPutEndLayer;    //end of range of layers to project
     double inPutStartLayer;    //start of range of layers to project
     waveHndl inPutWaveH;    //handle to the input wave
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 } ProjectSpecFramesParams, * ProjectSpecFramesParamsPtr;
 
@@ -142,12 +150,14 @@ typedef struct ProjectSliceParams {
     double slice;    // X, Y  or Z slice to get
     waveHndl outPutWaveH;    //handle to the output wave
     waveHndl inPutWaveH;//handle to the input wave
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 }ProjectSliceParams, * ProjectSliceParamsPtr;
 
 // LSM Utilities
 typedef struct SwapEvenParams {
     waveHndl w1;
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 }SwapEvenParams, * SwapEvenParamsPtr;
 
@@ -155,6 +165,7 @@ typedef struct DownSampleParams {
     double dsType;
     double boxFactor;
     waveHndl w1;
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 } DownSampleParams, * DownSampleParamsPtr;
 
@@ -162,11 +173,13 @@ typedef struct DecumulateParams {
     double expMax;  //expected maximum counts per pixel. Used in seeing if counter has rolled over or other error
     double bitSize;   //bitsize of the counter. either 24 or 32
     waveHndl w1;
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 } DecumulateParams, * DecumulateParamsPtr;
 
 typedef struct TransposeFramesParams {
     waveHndl w1;
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 }TransposeFramesParams, * TransposeFramesParamsPtr;
 
@@ -177,6 +190,7 @@ typedef struct ConvolveFramesParams {
     double outPutType; // 0 for same type as input wave, non-zero for floating point wave
     Handle outPutPath;    // A handle to a string containing path to output wave we want to make, or empty string to overwrite existing wave
     waveHndl inPutWaveH; //input wave. needs to be 2D or 3D wave
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 } ConvolveFramesParams, * ConvolveFramesParamsPtr;
 
@@ -185,33 +199,35 @@ typedef struct MedianFramesParams {
     double kWidth; //width of the area over which to calculate the median. Must be an odd number
     Handle outPutPath;    // A handle to a string containing path to output wave we want to make, or empty string to overwrite existing wave
     waveHndl inPutWaveH;//input wave. needs to be 2D or 3D wave
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 } MedianFramesParams, * MedianFramesParamsPtr;
+
 // Return to default structure packing
 #pragma pack()
 
 /* Prototypes */
 HOST_IMPORT int XOPMain(IORecHandle ioRecHandle);
 //LSM Utilities
-extern "C" int SwapEven(SwapEvenParamsPtr p);
-int DownSample(DownSampleParamsPtr p);
-int Decumulate(DecumulateParamsPtr p);
-int TransposeFrames(TransposeFramesParamsPtr p);
+extern "C" int SwapEven(SwapEvenParamsPtr);
+extern "C" int DownSample(DownSampleParamsPtr p);
+extern "C" int Decumulate(DecumulateParamsPtr p);
+extern "C" int TransposeFrames(TransposeFramesParamsPtr p);
 // Kalman Averaging
-int KalmanAllFrames(KalmanAllFramesParamsPtr);
-int KalmanSpecFrames(KalmanSpecFramesParamsPtr);
-int KalmanWaveToFrame(KalmanWaveToFrameParamsPtr);
-int KalmanList(KalmanListParamsPtr p);
-int KalmanNext(KalmanNextParamsPtr p);
+extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr);
+extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr);
+extern "C" int KalmanWaveToFrame(KalmanWaveToFrameParamsPtr);
+extern "C" int KalmanList(KalmanListParamsPtr p);
+extern "C" int KalmanNext(KalmanNextParamsPtr p);
 // Project Image
-int ProjectAllFrames(ProjectAllFramesParamsPtr p);
-int ProjectSpecFrames(ProjectSpecFramesParamsPtr p);
-int ProjectXSlice(ProjectSliceParamsPtr p);
-int ProjectYSlice(ProjectSliceParamsPtr p);
-int ProjectZSlice(ProjectSliceParamsPtr p);
+extern "C" int  ProjectAllFrames(ProjectAllFramesParamsPtr p);
+extern "C" int  ProjectSpecFrames(ProjectSpecFramesParamsPtr p);
+extern "C" int  ProjectXSlice(ProjectSliceParamsPtr p);
+extern "C" int  ProjectYSlice(ProjectSliceParamsPtr p);
+extern "C" int  ProjectZSlice(ProjectSliceParamsPtr p);
 //Filter frames
-int ConvolveFrames(ConvolveFramesParamsPtr p);
-int SymConvolveFrames(ConvolveFramesParamsPtr p);
-int MedianFrames(MedianFramesParamsPtr p);
+extern "C" int  ConvolveFrames(ConvolveFramesParamsPtr p);
+extern "C" int  SymConvolveFrames(ConvolveFramesParamsPtr p);
+extern "C" int  MedianFrames(MedianFramesParamsPtr p);
 template <typename T> T medianT(UInt32 n, T* dataStrtPtr);
 #endif

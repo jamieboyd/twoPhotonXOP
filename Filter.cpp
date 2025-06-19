@@ -1,7 +1,7 @@
 #include "twoPhoton.h"
 /**********************************************************************************************************************
  Code for filtering waves with 2D convolution kernels - arbitrary, symetrical, or median
- Last Modified 2025/06/13 by Jamie Boyd
+ Last Modified 2025/06/18 by Jamie Boyd
  *********************************************************************************************************************/
 
 /* Structure to pass data to each ConvolveFrames thread or ConvolveSymFrames thread
@@ -343,7 +343,7 @@ void* ConvolveFramesThread (void* threadarg){
  waveHndl inPutWaveH;//input wave. needs to be 3D wave
  double result;*/
 
-int ConvolveFrames(ConvolveFramesParamsPtr p){
+extern "C" int ConvolveFrames(ConvolveFramesParamsPtr p){
 	int result = 0;	// The error returned from various Wavemetrics functions
 	waveHndl inPutWaveH, outPutWaveH, kernelH;		// handles to the input and output waves and the kernel
 	int inPutWaveType, kernelWaveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
@@ -384,8 +384,7 @@ int ConvolveFrames(ConvolveFramesParamsPtr p){
         else
             zSize=inPutDimensionSizes [2];
 		//	Check that kernel is 2D, and of odd dimensions
-		if (result = MDGetWaveDimensions(kernelH, &kernelDimensions, kernelDimensionSizes))
-			throw result;
+        if (MDGetWaveDimensions(kernelH, &kernelDimensions, kernelDimensionSizes)) throw result = WAVEERROR_NOS;
 		if ((((kernelDimensions != 2) || ((kernelDimensionSizes[0] % 2) == 0)) || ((kernelDimensionSizes[1] % 2) == 0)))
 			throw result = BADKERNEL;
 		// make sure kernel is 32 bit float - change if necessary
@@ -396,23 +395,23 @@ int ConvolveFrames(ConvolveFramesParamsPtr p){
 		if (WMGetHandleSize (p->outPutPath) == 0){
 			if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
 			if (isFloat){ //redimension input/output wave to 32bit floating point
-				if (result = MDChangeWave(inPutWaveH, NT_FP32, inPutDimensionSizes)) throw result;
+				if (MDChangeWave(inPutWaveH, NT_FP32, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
 			}
 			outPutWaveH = inPutWaveH;
 			isOverWriting = 1;
 		}else{ // Parse outPut path for folder path and wave name
 			ParseWavePath (p->outPutPath, outPutPath, outPutWaveName);
 			//Check to see if output path is valid
-			if (result = GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result;
+			if (GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result = WAVEERROR_NOS;
 			// Test name and data folder for output wave against the input wave to prevent accidental overwriting, if src and dest are the same
 			WaveName (inPutWaveH, inPutWaveName);
-			GetWavesDataFolder (inPutWaveH, &inPutDFHandle);
-			GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath);
+			if (GetWavesDataFolder (inPutWaveH, &inPutDFHandle)) throw result = WAVEERROR_NOS;
+            if (GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath)) throw result = WAVEERROR_NOS;;
 			if ((!(CmpStr (inPutPath,outPutPath))) && (!(CmpStr (inPutWaveName,outPutWaveName)))){	// Then we would overwrite wave
 				isOverWriting = 1;
 				if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
 				if (isFloat){ //redimesnion input wave to 32bit floating point
-					if (result = MDChangeWave(inPutWaveH, NT_FP32, inPutDimensionSizes)) throw result;
+					if (MDChangeWave(inPutWaveH, NT_FP32, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
 				}
 				outPutWaveH = inPutWaveH;
 			}else{
@@ -421,40 +420,34 @@ int ConvolveFrames(ConvolveFramesParamsPtr p){
 				//No liberal wave names for output wave
 				CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
 				if (isFloat){
-					if (result = MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, NT_FP32, overWrite))
-						throw result;
+					if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, NT_FP32, overWrite)) throw result = WAVEERROR_NOS;
 				}else{
-					if (result = MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite))
-						throw result;
+					if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite)) throw result = WAVEERROR_NOS;
 				}
 			}
 		}
-	}catch (int result){ // catch before allocating any memory
-		p -> result = result;
-		return (result);	// XFUNC error code.
-	}try{
         //Get data offsets for the 3 waves (2 waves, if overwriting)
-		if (result = MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset))
-			throw result;
+        if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) throw result = WAVEERROR_NOS;
 		if (isOverWriting){
 			outPutOffset = inPutOffset;
 		}else{
-			if (result = MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset))
-				throw result;
+			if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset)) throw result = WAVEERROR_NOS;
 		}
-		if (result = MDAccessNumericWaveData(kernelH, kMDWaveAccessMode0, &kernelOffset))
-			throw result;
+        if (MDAccessNumericWaveData(kernelH, kMDWaveAccessMode0, &kernelOffset)) throw result = WAVEERROR_NOS;
         inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
 		outPutDataStartPtr =  (char*)(*outPutWaveH) + outPutOffset;
         kernelDataStartPtr = (char*)(*kernelH) + kernelOffset;
         //make kernel table.
 		kSize = kernelDimensionSizes[0] * kernelDimensionSizes[1];
 		kernelTablePtr =ConvolveMakeKernelTable ((float*)kernelDataStartPtr, (int)kernelDimensionSizes[0], (int) kernelDimensionSizes[1]);
-		if (kernelTablePtr == NULL)
-			throw result = NOMEM;
+		if (kernelTablePtr == NULL) throw result = NOMEM;
     }catch (int (result)) { // catch before allocating any memory
-		p -> result = result;				// XFUNC error code
-		return (result);
+        p -> result = (double)(result - FIRST_XOP_ERR);
+        #ifdef NO_IGOR_ERR
+            return (0);
+        #else
+            return (result);
+        #endif
     }
     // multiprocessor initialization
     // make an array of parameter structures
@@ -492,8 +485,8 @@ int ConvolveFrames(ConvolveFramesParamsPtr p){
     //free kernel table memory
     WMDisposePtr ((Ptr)kernelTablePtr);
     WaveHandleModified(outPutWaveH);			// Inform Igor that we have changed the output wave.
-    p -> result = result;				// // XFUNC error code will be 0
-    return (result);
+    p -> result = (0);
+    return (0);
 }
 
 /*****************************************************************************************************************
@@ -730,8 +723,7 @@ void* SymConvolveFramesThread (void* threadarg){
  } ConvolveFramesParams, *ConvolveFramesParamsPtr
  */
 
-int SymConvolveFrames(ConvolveFramesParamsPtr p)
-{
+extern "C" int SymConvolveFrames(ConvolveFramesParamsPtr p) {
     int result = 0;	// The error returned from various Wavemetrics functions
     waveHndl inPutWaveH, outPutWaveH, kernelH;		// handles to the input wave, output wave (we create) and kernel wave
     int inPutWaveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
@@ -751,22 +743,17 @@ int SymConvolveFrames(ConvolveFramesParamsPtr p)
     UInt8 isFloat = (UInt8)(p-> outPutType); // 0 to use input type, non-zero to use 32 bit floating point
     UInt8 isOverWriting; // non-zero if output is overwriting input wave
     float *kernelTable;
-    float * kPtr;
-    float kSum;
     UInt8 iThread, nThreads = gNumProcessors;
     char *inPutDataStartPtr, *outPutDataStartPtr, *kernelDataStartPtr;
     try{
         // Get handles to input wave and kernel.
         inPutWaveH = p->inPutWaveH;
-        if (inPutWaveH == NIL)
-            throw result = NON_EXISTENT_WAVE;
+        if (inPutWaveH == NIL) throw result = NON_EXISTENT_WAVE;
         // Get wave data type
         inPutWaveType = WaveType(inPutWaveH);
-        if (inPutWaveType==TEXT_WAVE_TYPE)
-            throw result = NOTEXTWAVES;
+        if (inPutWaveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
         // Get number of used dimensions in waves.
-        if (result = MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))
-            throw result;
+        if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
         // Check that inputwave is 2D or 3D
         if ((inPutDimensions == 1) || (inPutDimensions == 4))
             throw result = INPUTNEEDS_2D3D_WAVE;
@@ -779,16 +766,12 @@ int SymConvolveFrames(ConvolveFramesParamsPtr p)
         if (kernelH == NIL)
             throw result = NON_EXISTENT_WAVE;
         // Get number of used dimensions in kernel.
-        if (result = MDGetWaveDimensions(kernelH, &kernelDimensions, kernelDimensionSizes))
-            throw result;
-        if (kernelDimensions > 1)
-            throw result = BADSYMKERNEL;
-        if ((kernelDimensionSizes [0] % 2) == 0)
-            throw result = BADSYMKERNEL;
+        if (MDGetWaveDimensions(kernelH, &kernelDimensions, kernelDimensionSizes)) throw result = WAVEERROR_NOS;
+        if (kernelDimensions > 1) throw result = BADSYMKERNEL;
+        if ((kernelDimensionSizes [0] % 2) == 0) throw result = BADSYMKERNEL;
         // Get kernel wave data type, and make other numeric types float
         kernelType = WaveType(kernelH);
-        if (kernelType==TEXT_WAVE_TYPE)
-            throw result = NOTEXTWAVES;
+        if (kernelType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
         if (kernelType != NT_FP32)
             MDChangeWave(kernelH, NT_FP32, kernelDimensionSizes);
         // make output wave
@@ -796,14 +779,14 @@ int SymConvolveFrames(ConvolveFramesParamsPtr p)
         if (WMGetHandleSize (p->outPutPath) == 0){
             if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
             if (isFloat){ //redimension input/output wave to 32bit floating point
-                if (result = MDChangeWave(inPutWaveH, NT_FP32, inPutDimensionSizes)) throw result;
+                if (MDChangeWave(inPutWaveH, NT_FP32, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
             }
             outPutWaveH = inPutWaveH;
             isOverWriting = 1;
         }else{ // Parse outPut path for folder path and wave name
             ParseWavePath (p->outPutPath, outPutPath, outPutWaveName);
             //Check to see if output path is valid
-            if (result = GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result;
+            if (GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result = WAVEERROR_NOS;
             // Test name and data folder for output wave against the input wave to prevent accidental overwriting, if src and dest are the same
             WaveName (inPutWaveH, inPutWaveName);
             GetWavesDataFolder (inPutWaveH, &inPutDFHandle);
@@ -812,7 +795,7 @@ int SymConvolveFrames(ConvolveFramesParamsPtr p)
                 isOverWriting = 1;
                 if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
                 if (isFloat){ //redimesnion input wave to 32bit floating point
-                    if (result = MDChangeWave(inPutWaveH, NT_FP32, inPutDimensionSizes)) throw result;
+                    if (MDChangeWave(inPutWaveH, NT_FP32, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
                 }
                 outPutWaveH = inPutWaveH;
             }else{
@@ -821,38 +804,34 @@ int SymConvolveFrames(ConvolveFramesParamsPtr p)
                 //No liberal wave names for output wave
                 CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
                 if (isFloat){
-                    if (result = MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, NT_FP32, overWrite))
-                        throw result;
+                    if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, NT_FP32, overWrite)) throw result = WAVEERROR_NOS;
                 }else{
-                    if (result = MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite))
-                        throw result;
+                    if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite)) throw result = WAVEERROR_NOS;
                 }
             }
         }
-    }catch (int result){  //catch before locking any handles
-        p -> result = result;
-        return (result);	// XFUNC error code.
-    }try{
+
         //Get data offsets for the 3 waves (2 waves, if overwriting)
-        if (result = MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset))
-            throw result;
+        if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) throw result = WAVEERROR_NOS;
         if (isOverWriting){
             outPutOffset = inPutOffset;
         }else{
-            if (result = MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset))
-                throw result;
+            if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset)) throw result = WAVEERROR_NOS;
         }
         inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
         outPutDataStartPtr =  (char*)(*outPutWaveH) + outPutOffset;
-        if (result = MDAccessNumericWaveData(kernelH, kMDWaveAccessMode0, &kernelOffset))
-            throw result;
+        if (MDAccessNumericWaveData(kernelH, kMDWaveAccessMode0, &kernelOffset)) throw result = WAVEERROR_NOS;
         kernelDataStartPtr = (char*)(*kernelH) + kernelOffset;
         // make kernel table
         kernelTable = SymConvolveMakeKernelTable ((float*)kernelDataStartPtr, kernelDimensionSizes [0]);
         if (kernelTable ==NULL) throw result = BADSYMKERNEL;
     }catch (int (result)) {
-        p -> result = result; // XFUNC error code
-        return (result);	// XFUNC error code.
+        p -> result = (double)(result - FIRST_XOP_ERR);
+        #ifdef NO_IGOR_ERR
+            return (0);
+        #else
+            return (result);
+        #endif
     }
     // multiprocessor initialization
     // make an array of parameter structures
@@ -889,8 +868,8 @@ int SymConvolveFrames(ConvolveFramesParamsPtr p)
     //free kernel copy memory
     WMDisposePtr ((Ptr)kernelTable);
     WaveHandleModified(outPutWaveH);			// Inform Igor that we have changed the output wave.
-    p -> result = result;				// // XFUNC error code will be 0
-    return (result);
+    p -> result = (0);
+    return (0);
 }
 
 /****************************************************************************************************************
@@ -1168,14 +1147,13 @@ void* MedianFramesThread (void* threadarg){
  double result;
  } MedianFramesParams, *MedianFramesParamsPtr;*/
 
-int MedianFrames (MedianFramesParamsPtr p)
-{
+extern "C" int MedianFrames (MedianFramesParamsPtr p){
     int result = 0;	// The error returned from various Wavemetrics functions
     waveHndl inPutWaveH, outPutWaveH;		// handles to the input and output waves
 	int inPutWaveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
     int inPutDimensions;	// number of dimensions in input wave
     CountInt inPutDimensionSizes[MAX_DIMENSIONS+1];	// an array used to hold the width, height, layers, and chunk sizes
-    BCInt inPutOffset, outPutOffset, kernelOffset;	//offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
+    BCInt inPutOffset, outPutOffset;	//offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
     DataFolderHandle inPutDFHandle, outPutDFHandle;	// Handle to the datafolder where we will put the output wave
     DFPATH inPutPath, outPutPath;	// string to hold data folder path of input wave
     WVNAME inPutWaveName, outPutWaveName;	// C strings to hold names of input and output waves
@@ -1188,18 +1166,14 @@ int MedianFrames (MedianFramesParamsPtr p)
         if ((kWidth % 2) == 0) throw result = BADKERNEL;
         // Get handle to input wave
         inPutWaveH = p->inPutWaveH;
-        if (inPutWaveH == NIL)
-            throw result = NON_EXISTENT_WAVE;
+        if (inPutWaveH == NIL) throw result = NON_EXISTENT_WAVE;
         // Get wave data type
         inPutWaveType = WaveType(inPutWaveH);
-        if (inPutWaveType==TEXT_WAVE_TYPE)
-            throw result = NOTEXTWAVES;
+        if (inPutWaveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
         // Get number of used dimensions in wave
-        if (result = MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))
-            throw result;
+        if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
         // Check that inputwave is 2D or 3D
-        if ((inPutDimensions == 1) || (inPutDimensions == 4))
-            throw result = INPUTNEEDS_2D3D_WAVE;
+        if ((inPutDimensions == 1) || (inPutDimensions == 4)) throw result = INPUTNEEDS_2D3D_WAVE;
         // If outPutPath is empty string, we are overwriting existing wave
         if (WMGetHandleSize (p->outPutPath) == 0){
             if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
@@ -1208,11 +1182,11 @@ int MedianFrames (MedianFramesParamsPtr p)
         }else{ // Parse outPut path
             ParseWavePath (p->outPutPath, outPutPath, outPutWaveName);
             //Check to see if output path is valid
-            if (result = GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result;
+            if (GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result = WAVEERROR_NOS;
             // Test name and data folder for output wave against the input wave to prevent accidental overwriting, if src and dest are the same
             WaveName (inPutWaveH, inPutWaveName);
-            GetWavesDataFolder (inPutWaveH, &inPutDFHandle);
-            GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath);
+            if (GetWavesDataFolder (inPutWaveH, &inPutDFHandle)) return WAVEERROR_NOS;
+            if (GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath)) return WAVEERROR_NOS;
             if ((!(CmpStr (inPutPath,outPutPath))) && (!(CmpStr (inPutWaveName,outPutWaveName)))){	// Then we would overwrite wave
                 isOverWriting = 1;
                 if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
@@ -1222,27 +1196,25 @@ int MedianFrames (MedianFramesParamsPtr p)
                 // make the output wave
                 //No liberal wave names for output wave
                 CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
-                if (result = MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite)) throw result;
+                if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite)) throw result = WAVEERROR_NOS;
             }
         }
-    }catch (int result){  //catch before locking any handles
-        p -> result = result;
-        return (result);	// XFUNC error code.
-    }try{
 		//Get data offsets for the 3 waves (2 waves, if overwriting)
-        if (result = MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset))
-            throw result;
+        if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) return WAVEERROR_NOS;
         if (isOverWriting){
             outPutOffset = inPutOffset;
         }else{
-            if (result = MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset))
-                throw result;
+            if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset)) throw result = WAVEERROR_NOS;
         }
         inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
         outPutDataStartPtr =  (char*)(*outPutWaveH) + outPutOffset;
     }catch (int result){
-		p -> result = result;				// XFUNC error code
-        return (result);
+        p -> result = (double)(result - FIRST_XOP_ERR);
+        #ifdef NO_IGOR_ERR
+            return (0);
+        #else
+            return (result);
+        #endif
     }
     /* multiprocessor init
      fill array of parameter structures */
@@ -1260,7 +1232,6 @@ int MedianFrames (MedianFramesParamsPtr p)
         paramArrayPtr[iThread].tN =nThreads; // total number of threads
         paramArrayPtr[iThread].kWidth = (int)kWidth;
     }
-	    
     // make an array of pthread_t
     pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     // create the threads
@@ -1276,6 +1247,6 @@ int MedianFrames (MedianFramesParamsPtr p)
     // Free paramaterArray memory
     WMDisposePtr ((Ptr)paramArrayPtr);
     WaveHandleModified(outPutWaveH);			// Inform Igor that we have changed the output wave.
-    p -> result = result;				// // XFUNC error code will be 0
-    return (result);
+    p -> result = (0);
+    return (0);
 }

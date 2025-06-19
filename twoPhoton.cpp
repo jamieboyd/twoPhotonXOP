@@ -1,18 +1,18 @@
-/*	twoP.c
-A collection of functions designed to work with the twoP procedures revamped to work with XOP toolkit 7
-See the twoPhotonXOP.ihf file for a detailed desription of each function.
+/* -------------------------------- twoPhoton.c ----------------------------------------------------------------
+A collection of functions designed to work with the twoPhoton procedures revamped to work with XOP toolkits 7 and 8
+See the twoPhotonXOP.ihf file for a detailed desription of what each function does.
 Last Modified:
 2025/06/13 by Jamie Boyd  updating For XOP toolkit 7
 */
 
 #include "twoPhoton.h"
 
+/* sanity check function for getting number of processors should return same as ThreadProcessorCount*/
 // Global Variable for number of processors for threading
 UInt8 gNumProcessors;
 
-/*	RegisterFunction()
-
-    Igor calls this at startup time to find the address of the
+/*
+    Igor calls RegisterFunction at startup time to find the address of the
     XFUNCs added by this XOP. See XOP manual regarding "Direct XFUNCs".
 */
 static XOPIORecResult RegisterFunction() {
@@ -101,10 +101,13 @@ HOST_IMPORT int XOPMain(IORecHandle ioRecHandle) {		// The use of XOPMain rather
     XOPInit(ioRecHandle);				// Do standard XOP initialization.
     SetXOPEntry(XOPEntry);				// Set entry point for future calls.
     if (igorVersion < 620) {			// Requires Igor Pro 6.20 or later.
-        SetXOPResult(OLD_IGOR);			// OLD_IGOR is defined in twoP.h and there are corresponding error strings in twoP.r and twoPWinCustom.rc.
+        SetXOPResult(OLD_IGOR);			// OLD_IGOR is defined in twoP.h corresponding error strings in twoP.r twoPWinCustom.rc.
         return EXIT_FAILURE;
     }
     gNumProcessors = num_processors();
+    char XOPbuffer [128];
+    sprintf(XOPbuffer, "TwoPhotonXOP found %d processor cores in this system.\r", gNumProcessors);
+    XOPNotice (XOPbuffer);
     SetXOPResult(0L);
     return EXIT_SUCCESS;
 }

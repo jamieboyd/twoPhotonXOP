@@ -22,9 +22,7 @@ typedef struct KalmanThreadParams{
 /****************************************************************************************************************
  The following template is used to handle any one of the 8 types of wave data, for any of the three Kalman averaging functions for 3D waves
  Last modified 2014/01/28 by Jamie Boyd */
-template <typename T> int KalmanT(T *srcWaveStart, T *destWaveStart, CountInt pixPerThread, CountInt pixToNextFrame, CountInt numLayers, float multiplier)
-{
-    
+template <typename T> int KalmanT(T *srcWaveStart, T *destWaveStart, CountInt pixPerThread, CountInt pixToNextFrame, CountInt numLayers, float multiplier) {
 	T* destWaveEnd = destWaveStart + pixPerThread;	// End of the output layer we are putting the average into
 	T* srcWave, *destWave;	// pointers used to iterate through source wave and destination wave
 	/* If multiplier is < 1, use standard averaging across layers with a floating point temporary value */
@@ -85,7 +83,6 @@ template <typename T> int KalmanT(T *srcWaveStart, T *destWaveStart, CountInt pi
 	return 0;
 }
 
-
 /**********************************************************************************************************************
 Each thread to average a range of pixels in a 3D stack starts with this function
 Last Modified 2013/07/16 by Jamie Boyd */
@@ -140,22 +137,19 @@ void* KalmanThread (void* threadarg){
     return 0;
 }
 
-/****************************************************************************************************************
- Does Kalman averaging across all layers in a 3D wave and places results in a new 2D wave
-Last Modified 2014/02/13 by Jamie Boyd 
+/************************************************************************************************************
+Does Kalman averaging across all layers in a 3D wave and places results in a new 2D wave
+Last Modified 2015/06/18 by Jamie Boyd 
 KalmanAllFramesParams 
 double overWrite;	//0 to give errors when wave already exists. non-zero to overwrite existing wave without warning.
 double multiplier;	// Multiplier for,e.g., 16 bit waves containing less than 16 bits of data
 Handle outPutPath;	// A handle to a string containing path to output wave we want to make
-waveHndl inPutWaveH;	// handle to a 3D input wave */
+waveHndl inPutWaveH;	// handle to a 3D input wave
+result                                  0 for success, error code for failure */
 
-int KalmanAllFrames(KalmanAllFramesParamsPtr p)
-{
+extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
 	int result = 0;	// The error returned from various Wavemetrics functions
 	waveHndl inPutWaveH = NULL, outPutWaveH = NULL;	// Handles to the input and output waves
-#if XOP_TOOLKIT_VERSION < 600
-    int inPutWaveState, outPutWaveState;
-#endif
     int inPutWaveType;	// Wavemetrics numeric code for data type of wave
 	int inPutDimensions;		// The number of dimensions used in the input wave
 	CountInt inPutOffset, outPutOffset; //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
@@ -170,8 +164,7 @@ int KalmanAllFrames(KalmanAllFramesParamsPtr p)
 	float multiplier = (float)(p->multiplier);	// multiplier for integer waves containing less than their full range of data
 	CountInt zSize;
 	UInt8 iThread, nThreads;
-    
-	try {
+    try {
 		// Get handle to input wave.
 		inPutWaveH = p ->inPutWaveH;
 		if(inPutWaveH == NIL)throw result = NON_EXISTENT_WAVE;
@@ -179,7 +172,7 @@ int KalmanAllFrames(KalmanAllFramesParamsPtr p)
 		inPutWaveType = WaveType(inPutWaveH);
 		if (inPutWaveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
 		//Get number of used dimensions in input wave.
-		if (result = MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))throw result;
+		if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))throw result = WAVEERROR_NOS;
 		// Check that input wave is 3D
 		if (inPutDimensions != 3)
 			throw result = INPUTNEEDS_3D_WAVE;
@@ -194,11 +187,11 @@ int KalmanAllFrames(KalmanAllFramesParamsPtr p)
 		}else{ // Parse outPut path
 			ParseWavePath (p->outPutPath, outPutPath, outPutWaveName);
 			//check that data folder is valid and get a handle to the datafolder
-			if (result = GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result;
+			if (GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result = WAVEERROR_NOS;
 			// Test name and data folder for output wave against the input wave to prevent accidental overwriting, if src and dest are the same
 			WaveName (inPutWaveH, inPutWaveName);
-			GetWavesDataFolder (inPutWaveH, &inPutDFHandle);
-			GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath);
+            if (GetWavesDataFolder (inPutWaveH, &inPutDFHandle)) throw result = WAVEERROR_NOS;
+            if (GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath)) throw result = WAVEERROR_NOS;
 			if ((!(CmpStr (inPutPath,outPutPath))) && (!(CmpStr (inPutWaveName,outPutWaveName)))){	// Then we would overwrite wave
 				isOverWriting = 1;
 				if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
@@ -210,30 +203,28 @@ int KalmanAllFrames(KalmanAllFramesParamsPtr p)
 				inPutDimensionSizes [2] = 0;
 				//No liberal wave names for output wave
 				CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
-				if (result = MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite)) throw result;
+				if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite)) throw result = WAVEERROR_NOS;
 			}
 		}
-	}catch (int result){
-		p -> result = result;
-		return (result);	// XFUNC error code.
-	}try{
         //Get data offsets for the 2 waves (1 wave, if overwriting)
-		if (result = MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset))
-			throw result;
+		if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset) != 0) throw result = WAVEERROR_NOS;
 		inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
 		if (isOverWriting){
 			outPutOffset = inPutOffset;
 			outPutDataStartPtr = inPutDataStartPtr;
 		}else{
-			if (result = MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset))
-				throw result;
+			if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset)) throw result = WAVEERROR_NOS;
 			outPutDataStartPtr =  (char*)(*outPutWaveH) + outPutOffset;
 		}
+    // catch error before starting threads
 	}catch (int result){
-        p -> result = result;				// XFUNC error code
-		return (result);
+        p -> result = (double)(result - FIRST_XOP_ERR);
+#ifdef NO_IGOR_ERR
+		return (0);
+#else
+        return (result);
+#endif
 	}
-    
     // multiprocessor initialization
     // make an array of parameter structures
     nThreads =num_processors();
@@ -273,10 +264,9 @@ int KalmanAllFrames(KalmanAllFramesParamsPtr p)
         result = MDChangeWave (outPutWaveH, -1, inPutDimensionSizes);
     }
     WaveHandleModified(outPutWaveH);			// Inform Igor that we have changed output wave
-    p -> result = result;				// // XFUNC error code will be 0
-    return (result);
+    p -> result = (0);
+    return (0);
 }
-
 
 /****************************************************************************************************************
 Averages a specified range of layers of the input wave into a specified layer of the output wave
@@ -288,14 +278,10 @@ waveHndl outPutWaveH;//handle to output wave
 double endLayer;	// end of lyaers to average
 double startLayer;	// start of layers to average for input wave
 waveHndl inPutWaveH;// handle to input wave */
-int KalmanSpecFrames(KalmanSpecFramesParamsPtr p)
-{
+extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
 	int result = 0;	// The error returned from various Wavemetrics functions
 	waveHndl inPutWaveH = NIL, outPutWaveH = NIL;	// Handles to the input and output waves
 	int inPutWaveType, outPutWaveType;	// Wavemetrics numeric code for data type of wave
-#if XOP_TOOLKIT_VERSION < 600
-    int inPutWaveState, outPutWaveState;
-#endif
     int inPutDimensions,outPutDimensions;	// number of dimensions in input and output waves
 	CountInt inPutDimensionSizes[MAX_DIMENSIONS+1], outPutDimensionSizes[MAX_DIMENSIONS+1];	// an array used to hold the width, height, layers, and chunk sizes
 	CountInt inPutOffset, outPutOffset;	//offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
@@ -317,8 +303,8 @@ int KalmanSpecFrames(KalmanSpecFramesParamsPtr p)
 		if (inPutWaveType != outPutWaveType)throw result = NOTSAMEWAVETYPE;
 		if ((inPutWaveType==TEXT_WAVE_TYPE) || (outPutWaveType==TEXT_WAVE_TYPE))throw result = NOTEXTWAVES;
 		// Get number of used dimensions in waves.
-		if (result = MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))throw result;
-		if (result = MDGetWaveDimensions(outPutWaveH, &outPutDimensions, outPutDimensionSizes))throw result;
+		if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))throw result=WAVEERROR_NOS;
+		if (MDGetWaveDimensions(outPutWaveH, &outPutDimensions, outPutDimensionSizes))throw result=WAVEERROR_NOS;
 		// Check that input wave is 3D and output wave is 2D or 3D
 		if (inPutDimensions != 3)throw result = INPUTNEEDS_3D_WAVE;
 		if (!((outPutDimensions == 2) || (outPutDimensions == 3))) throw result = OUTPUTNEEDS_2D3D_WAVE;
@@ -343,18 +329,18 @@ int KalmanSpecFrames(KalmanSpecFramesParamsPtr p)
 		layersToDo = endLayer - startLayer + 1;
 		// As X and Y are same size for input and output waves, we need only look at the input wave to get points per layer
 		pointsPerLayer = inPutDimensionSizes[0] * inPutDimensionSizes[1];
-	}catch (int result){
-		p -> result = result;
-		return (result);	// XFUNC error code.
-	}try{
         //Get data offsets for the 2 waves
-		if (result = MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) throw result;
+		if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) throw result = WAVEERROR_NOS;
 		inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
-		if (result = MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset))throw result;
+		if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset))throw result = WAVEERROR_NOS;
 		outPutDataStartPtr =  (char*)(*outPutWaveH) + outPutOffset;
 	}catch (int result){
-		p -> result = result;	// XFUNC error code
-		return (result);
+        p -> result = (double)(result - FIRST_XOP_ERR);
+#ifdef NO_IGOR_ERR
+    return (0);
+#else
+    return (result);
+#endif
 	}
     // multiprocessor initialization
     // make an array of parameter structures
@@ -390,24 +376,20 @@ int KalmanSpecFrames(KalmanSpecFramesParamsPtr p)
     WMDisposePtr ((Ptr)paramArrayPtr);
     // Inform Igor that we have changed the output wave.
     WaveHandleModified(outPutWaveH);
-    p -> result = result;				// XFUNC error code
-    return (result);
+    p -> result = (0);				// XFUNC error code
+    return (0);
 }
 
 /*****************************************************************************************************************
 Collapses a 3D input wave into a single 2D frame. You can get the same result with KalmanAllFrames by using "" as outPut String
-Last Modified 2014/02/13 by Jamie Boyd
+Last Modified 2025/06/18 by Jamie Boyd
 KalmanWaveToFrameParams
 double multiplier;	// Multiplier for 16 bit waves containing less than 16 bits of data
 waveHndl inPutWaveH;// handle to input wave */
 
-int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p)
-{
+int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
 	int result=0;	// The error returned from various Wavemetrics functions
 	waveHndl inPutWaveH = NIL;		// handle to the input wave
-#if XOP_TOOLKIT_VERSION < 600
-    int inPutWaveState;
-#endif
     int inPutWaveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
     int inPutDimensions;	// number of dimensions in input and output waves
 	CountInt inPutDimensionSizes[MAX_DIMENSIONS+1];	// an array used to hold the width, height, layers, and chunk sizes
@@ -425,54 +407,53 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p)
 		inPutWaveType = WaveType(inPutWaveH);
 		if (inPutWaveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
 		//Get number of used dimensions in input wave.
-		if (result = MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))throw result;
+		if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))throw result = WAVEERROR_NOS;
 		// Check that input wave is 3D
-		if (inPutDimensions != 3)
-			throw result = INPUTNEEDS_3D_WAVE;
+		if (inPutDimensions != 3) throw result = INPUTNEEDS_3D_WAVE;
 		// Save z Size as we will be resizing dimensions array
 		zSize = inPutDimensionSizes [2];
-	}catch (int result){  //catch before locking any handles
-		p -> result = result;
-		return (result);	// XFUNC error code.
-	}try{
         //Get data offset for the wave
-		if (result = MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) throw result;
+		if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) throw result = WAVEERROR_NOS;
 		inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
 	}catch (int result){
-        p -> result = result;	// XFUNC error code
-		return (result);
+        p -> result = (double)(result - FIRST_XOP_ERR);
+#ifdef NO_IGOR_ERR
+    return (0);
+#else
+    return (result);
+#endif
 	}
-		// multiprocessor initialization
-		// make an array of parameter structures
-		nThreads =gNumProcessors;
-		KalmanThreadParamsPtr paramArrayPtr= (KalmanThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanThreadParams));
-		for (iThread = 0; iThread < nThreads; iThread++){
-			paramArrayPtr[iThread].inPutWaveType = inPutWaveType;
-			paramArrayPtr[iThread].inPutDataStartPtr = inPutDataStartPtr;
-			paramArrayPtr[iThread].outPutDataStartPtr = inPutDataStartPtr;
-			paramArrayPtr[iThread].startLayer = 0;
-			paramArrayPtr[iThread].outPutLayer =0;
-			paramArrayPtr[iThread].xSize = inPutDimensionSizes [0];
-			paramArrayPtr[iThread].ySize = inPutDimensionSizes [1];
-			paramArrayPtr[iThread].zSize =zSize;
-			paramArrayPtr[iThread].multiplier =multiplier;
-			paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
-			paramArrayPtr[iThread].tN =nThreads; // total number of threads
-		}
-		// make an array of pthread_t
-		pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
-		// create the threads
-		for (iThread = 0; iThread < nThreads; iThread++){
-			pthread_create (&threadsPtr[iThread], NULL, KalmanThread, (void *) &paramArrayPtr[iThread]);
-		}
-		// Wait till all the threads are finished
-		for (iThread = 0; iThread < nThreads; iThread++){
-			pthread_join (threadsPtr[iThread], NULL);
-		}
-		// free memory for pThreads Array
-		WMDisposePtr ((Ptr)threadsPtr);
-		// Free paramaterArray memory
-		WMDisposePtr ((Ptr)paramArrayPtr);
+    // multiprocessor initialization
+    // make an array of parameter structures
+    nThreads =gNumProcessors;
+    KalmanThreadParamsPtr paramArrayPtr= (KalmanThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanThreadParams));
+    for (iThread = 0; iThread < nThreads; iThread++){
+        paramArrayPtr[iThread].inPutWaveType = inPutWaveType;
+        paramArrayPtr[iThread].inPutDataStartPtr = inPutDataStartPtr;
+        paramArrayPtr[iThread].outPutDataStartPtr = inPutDataStartPtr;
+        paramArrayPtr[iThread].startLayer = 0;
+        paramArrayPtr[iThread].outPutLayer =0;
+        paramArrayPtr[iThread].xSize = inPutDimensionSizes [0];
+        paramArrayPtr[iThread].ySize = inPutDimensionSizes [1];
+        paramArrayPtr[iThread].zSize =zSize;
+        paramArrayPtr[iThread].multiplier =multiplier;
+        paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
+        paramArrayPtr[iThread].tN =nThreads; // total number of threads
+    }
+    // make an array of pthread_t
+    pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+    // create the threads
+    for (iThread = 0; iThread < nThreads; iThread++){
+        pthread_create (&threadsPtr[iThread], NULL, KalmanThread, (void *) &paramArrayPtr[iThread]);
+    }
+    // Wait till all the threads are finished
+    for (iThread = 0; iThread < nThreads; iThread++){
+        pthread_join (threadsPtr[iThread], NULL);
+    }
+    // free memory for pThreads Array
+    WMDisposePtr ((Ptr)threadsPtr);
+    // Free paramaterArray memory
+    WMDisposePtr ((Ptr)paramArrayPtr);
 	// Redimension wave
 	inPutDimensionSizes [0] = -1;
 	inPutDimensionSizes [1] = -1;
@@ -480,8 +461,8 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p)
 	inPutDimensionSizes [3] = 0;
 	result = MDChangeWave (inPutWaveH, -1, inPutDimensionSizes); // should never give error, and nothing to do if it does
 	WaveHandleModified(inPutWaveH);			// Inform Igor that we have changed the input wave.
-	p -> result = result;				// // XFUNC error code will be 0
-	return (result);
+	p -> result = (0);
+	return (0);
 }
 
 /****************************************************************************************************************
@@ -606,7 +587,8 @@ void* KalmanListThread (void* threadarg){
 
 
 /*****************************************************************************************************************
-Averages a semicolon-separated list of waves. Each wave must have same data type and same dimensions.
+Averages a semicolon-separated list of waves. Each wave must have same data type and same dimensions. This is not used by the twoPhoton program
+ so we print some more information in the error cases
 Last Modified 2014/02/13 by Jamie Boyd
 KalmanListParams
 double overwrite;	//0 to give errors when wave already exists. non-zero to overwrite existing wave.
@@ -614,8 +596,7 @@ double multiplier; // Multiplier for 16 bit waves containing less than 16 bits o
 Handle outPutPath;	// path and wavename of output wave
 Handle inPutList;	//semicolon separated list of input waves, with paths */
 
-int KalmanList (KalmanListParamsPtr p)
-{
+extern "C" int KalmanList (KalmanListParamsPtr p) {
 	int result = 0;	// The error returned from various Wavemetrics functions
 	waveHndl outPutWaveH = NULL; // handle to output wave
 	waveHndl* handleList; // pointer to an array of handles for input waves
@@ -644,7 +625,7 @@ int KalmanList (KalmanListParamsPtr p)
 		}else{ // Parse outPut path
 			ParseWavePath (p->outPutPath, outPutPath, outPutWaveName);
 			//check that data folder is valid and get a handle to the datafolder
-			if (result = GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result;
+			if (GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result = WAVEERROR_NOS;
 		}
 		// parse input list into an array of waveHandles
 		handleList = ParseWaveListPaths (p->inPutList, &numWaves);
@@ -669,7 +650,7 @@ int KalmanList (KalmanListParamsPtr p)
 			throw result = NOTEXTWAVES;
 		}
 		// Get wave dimensions and calculate number of points
-		if (result = MDGetWaveDimensions(handleList[0], &inPutDimensions, inPutDimensionSizes))throw result;
+		if (MDGetWaveDimensions(handleList[0], &inPutDimensions, inPutDimensionSizes))throw result = WAVEERROR_NOS;
 		nPnts = inPutDimensionSizes [0];
 		for (int id =1; id < inPutDimensions; id +=1){
 			nPnts *= inPutDimensionSizes [id];
@@ -699,7 +680,7 @@ int KalmanList (KalmanListParamsPtr p)
 			}
 			if (tInPutWaveType != inPutWaveType) throw result = NOTSAMEWAVETYPE;
 			// check number of dimensions
-			if (result = MDGetWaveDimensions(handleList[iw], &tInPutDimensions, tInPutDimensionSizes))throw result;
+			if (MDGetWaveDimensions(handleList[iw], &tInPutDimensions, tInPutDimensionSizes))throw result = WAVEERROR_NOS;
 			if (tInPutDimensions != inPutDimensions){
 				sprintf(XOPbuffer, "The number of dimensions of wave %d in the input list did not match the number of dimenisons of the first wave in the list.\r", iw);
 				XOPNotice (XOPbuffer);
@@ -727,30 +708,26 @@ int KalmanList (KalmanListParamsPtr p)
 		//No liberal wave names for output wave
 		if (isOverWriting == 0){
 			CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
-			if (result = MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite)) throw result;
+			if ( MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite)) throw result = WAVEERROR_NOS;
 		}
-	}catch (int result){ // catch before locking any handles
-		p -> result = result;	// XFUNC error code
-		return (result);
-	}try{
         // get offsets to data for input waves
 		inPutDataStartPtrs = (Ptr*) WMNewPtr (numWaves * sizeof (Ptr));
 		for (int iw = 0; iw < numWaves; iw++){
-			if (result = MDAccessNumericWaveData(handleList[iw], kMDWaveAccessMode0, &waveOffset)) throw result;
+			if (MDAccessNumericWaveData(handleList[iw], kMDWaveAccessMode0, &waveOffset)) throw result = WAVEERROR_NOS;
 			*(inPutDataStartPtrs + iw) = (char*)(*handleList[iw]) + waveOffset;
 		}
 		// get offset for outPut wave
 		if (isOverWriting) {
 			outPutDataStartPtr = *inPutDataStartPtrs;
 		}else{
-			if (result = MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &waveOffset)) throw result;
+			if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &waveOffset)) throw result = WAVEERROR_NOS;
 			outPutDataStartPtr =  (char*)(*outPutWaveH) + waveOffset;
 		}
 	}catch (int result){
         // free pointer for data starts
 		WMDisposePtr ((char*)inPutDataStartPtrs);
 		// set result
-		p -> result = result;	// XFUNC error code
+		p -> result = (result - FIRST_XOP_ERR);	// XFUNC error code
 		return (result);
 	}
 	/* multiprocessor init
@@ -784,8 +761,8 @@ int KalmanList (KalmanListParamsPtr p)
 	// Inform Igor that we have changed the wave.
 	WaveHandleModified(outPutWaveH);
 	// set result
-	p -> result = result;	// XFUNC error code
-	return (result);
+	p -> result = (0);
+	return (0);
 }
 
 /********************************************************************************************************************/
@@ -866,8 +843,7 @@ void* KalmanNextThread (void* threadarg){
  Averages a wave into an already averaged wave. Both waves must have same data type and same dimensions.
  Last Modified 2014/01/28 by Jamie Boyd
 */
-int KalmanNext (KalmanNextParamsPtr p)
-{
+extern "C" int KalmanNext (KalmanNextParamsPtr p) {
 	int result = 0;	// The error returned from various Wavemetrics functions
     waveHndl outPutWaveH = NULL; // handle to output wave
 	waveHndl inPutWaveH; // handle to input wave
@@ -891,7 +867,7 @@ int KalmanNext (KalmanNextParamsPtr p)
 		inPutWaveType = WaveType(inPutWaveH);
 		if (inPutWaveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
 		//Get number of used dimensions in input wave.
-		if (result = MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))throw result;
+		if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))throw result = WAVEERROR_NOS;
         // Get handle to outPut wave. Make sure outPut wave exists.
 		outPutWaveH = p->outPutWaveH;
 		if(outPutWaveH == NIL)throw result = NON_EXISTENT_WAVE;
@@ -899,7 +875,7 @@ int KalmanNext (KalmanNextParamsPtr p)
 		outPutWaveType = WaveType(outPutWaveH);
 		if (outPutWaveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
 		//Get number of used dimensions in outPut wave.
-		if (result = MDGetWaveDimensions(outPutWaveH, &outPutDimensions, outPutDimensionSizes))throw result;
+		if (MDGetWaveDimensions(outPutWaveH, &outPutDimensions, outPutDimensionSizes))throw result = WAVEERROR_NOS;
         // check that waves are the same types and dimension sizes
         if (inPutWaveType != outPutWaveType) throw result = NOTSAMEDIMSIZE;
         if (inPutDimensions != outPutDimensions) throw result = NOTSAMEDIMSIZE;
@@ -909,18 +885,18 @@ int KalmanNext (KalmanNextParamsPtr p)
             if (inPutDimensionSizes [id] != outPutDimensionSizes [id]) throw result = NOTSAMEDIMSIZE;
             nPnts *= inPutDimensionSizes [id];
         }
-    }catch (int result){
-		p -> result = result;	// XFUNC error code
-		return (result);
-	}try {
 		//Get data offset for the waves
-		if (result = MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) throw result;
+		if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) throw result = WAVEERROR_NOS;
 		inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
-        if (result = MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset)) throw result;
+        if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset)) throw result = WAVEERROR_NOS;
 		outPutDataStartPtr = (char*)(*outPutWaveH) + outPutOffset;
     }catch (int result){
-		p -> result = result;	// XFUNC error code
-		return (result);
+        p -> result = (double)(result - FIRST_XOP_ERR);
+        #ifdef NO_IGOR_ERR
+            return (0);
+        #else
+            return (result);
+        #endif
     }
     // multiprocessor initialization
     // make an array of parameter structures
@@ -949,8 +925,8 @@ int KalmanNext (KalmanNextParamsPtr p)
     WMDisposePtr ((Ptr)threadsPtr);
     // Free paramaterArray memory
     WMDisposePtr ((Ptr)paramArrayPtr);
-	result = MDChangeWave (outPutWaveH, -1, outPutDimensionSizes); // should never give error, and nothing to do if it does
+	MDChangeWave (outPutWaveH, -1, outPutDimensionSizes);
 	WaveHandleModified(outPutWaveH);			// Inform Igor that we have changed the input wave.
-	p -> result = result;				// // XFUNC error code will be 0
-	return (result);
+	p -> result = (0);
+	return (0);
 }

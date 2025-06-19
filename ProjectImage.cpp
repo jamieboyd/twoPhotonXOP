@@ -283,7 +283,6 @@ template <typename T> void doProjectZ(T *srcWaveStart, T *destWaveStart, UInt8 p
                 WMDisposePtr ((Ptr)bufferStart);
                 break;
         }
-        
 	}
 }
 /***********************************************************************************************************************
@@ -419,9 +418,8 @@ void* ProjectThread (void* threadarg){
 /*****************************************************************************************************************
  Makes a projection Image of a specified range of columns or rows or layers in the input wave and puts the result in a specified layer
  of the output wave
- Last Modified 2014/09/23 by Jamie Boyd*/
-int ProjectSpecFrames (ProjectSpecFramesParamsPtr p){
-	
+ Last Modified 2015/06/18 by Jamie Boyd*/
+extern "C" int ProjectSpecFrames (ProjectSpecFramesParamsPtr p){
 	int result =0;	// The error returned from various Wavemetrics functions
 	waveHndl inPutWaveH = NIL, outPutWaveH = NIL;	// Handles to the input and output waves
     int inPutWaveType, outPutWaveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
@@ -435,38 +433,28 @@ int ProjectSpecFrames (ProjectSpecFramesParamsPtr p){
 	CountInt endP = p->inPutEndLayer; // end point for projection
 	CountInt outPutP = p->outPutLayer;
 	UInt8 flatDimension = p->flatDimension;
-	UInt8 KillOutput=KILLOUTPUT; // will be set to 0 if output wave = input wave, so output wave is not killed upoon minor errors
 	try {
 		// Get handle to input wave make sure it exists.
 		inPutWaveH = p->inPutWaveH;
-		if (inPutWaveH == NIL)
-			throw result= NON_EXISTENT_WAVE;
+		if (inPutWaveH == NIL) throw result= NON_EXISTENT_WAVE;
 		outPutWaveH = p->outPutWaveH;
-		if (outPutWaveH == NIL)
-			throw result = NON_EXISTENT_WAVE;
+		if (outPutWaveH == NIL) throw result = NON_EXISTENT_WAVE;
 		// Get waves data type
 		inPutWaveType = WaveType(inPutWaveH);
 		outPutWaveType =  WaveType(outPutWaveH);
-		if (inPutWaveType != outPutWaveType)
-			throw result = NOTSAMEWAVETYPE;
+		if (inPutWaveType != outPutWaveType) throw result = NOTSAMEWAVETYPE;
 		// Check that we don't have a text wave
-		if ((inPutWaveType==TEXT_WAVE_TYPE) ||  (outPutWaveType==TEXT_WAVE_TYPE))
-			throw result = NOTEXTWAVES;
+		if ((inPutWaveType==TEXT_WAVE_TYPE) ||  (outPutWaveType==TEXT_WAVE_TYPE)) throw result = NOTEXTWAVES;
 		// Get number of used dimensions in waves.
-		if (result = MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))
-			throw result;
-		if (result = MDGetWaveDimensions(outPutWaveH, &outPutDimensions, outPutDimensionSizes))
-			throw result;
+		if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
+		if (MDGetWaveDimensions(outPutWaveH, &outPutDimensions, outPutDimensionSizes)) throw result = WAVEERROR_NOS;
 		// Check that input wave is 3D and output wave is 2D or 3D
-		if (inPutDimensions != 3)
-			throw result = INPUTNEEDS_3D_WAVE;
-		if ((outPutDimensions != 2) && (outPutDimensions != 3))
-			throw result = OUTPUTNEEDS_2D3D_WAVE;
+		if (inPutDimensions != 3) throw result = INPUTNEEDS_3D_WAVE;
+		if ((outPutDimensions != 2) && (outPutDimensions != 3)) throw result = OUTPUTNEEDS_2D3D_WAVE;
 		// Check that the dimensionality of the input and output waves match up for the dimension we are trying to collapse
 		switch (flatDimension){
 			case 0:	// X projection  output is dim [0] = y-size, dim [1] = z-Size
-				if ((outPutDimensionSizes[0] != inPutDimensionSizes [1]) || (outPutDimensionSizes[1] != inPutDimensionSizes [2]))
-					throw result = NOTSAMEDIMSIZE;
+				if ((outPutDimensionSizes[0] != inPutDimensionSizes [1]) || (outPutDimensionSizes[1] != inPutDimensionSizes [2])) throw result = NOTSAMEDIMSIZE;
 				break;
 			case 1:	// Y projection  output is dim [0] = x-size, dim [1] = z-Size
 				if ((outPutDimensionSizes[0] != inPutDimensionSizes [0]) || (outPutDimensionSizes[1] != inPutDimensionSizes [2]))
@@ -494,28 +482,22 @@ int ProjectSpecFrames (ProjectSpecFramesParamsPtr p){
 		if (endP < 0)endP = 0;
         //check that output layer is within the size of the output wave
 		if (outPutDimensions == 2){
-			if (outPutP != 0)
-				throw result = INVALIDOUTPUTFRAME;
+			if (outPutP != 0) throw result = INVALIDOUTPUTFRAME;
 		}else{
-			if ((outPutP > outPutDimensionSizes [2] - 1) || (outPutP < 0))
-				throw result = INVALIDOUTPUTFRAME;
+			if ((outPutP > outPutDimensionSizes [2] - 1) || (outPutP < 0)) throw result = INVALIDOUTPUTFRAME;
 		}
-		//catch errors before locking waves
-	}catch (int result){
-		p->result= result;
-		return result;
-	}try{
         // Get the offsets to the data in the input
-		if (result = MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutWaveOffset))
-			throw result;
+		if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutWaveOffset)) throw result = WAVEERROR_NOS;
         srcWaveStart = (char*)(*inPutWaveH) + inPutWaveOffset;
-		if (result = MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutWaveOffset))
-			throw result;
+        if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutWaveOffset)) throw result = WAVEERROR_NOS;
 		destWaveStart = (char*)(*outPutWaveH) + outPutWaveOffset;
     }catch (int result){
-        // set results to error and return
-        p->result= result;
-        return result;
+        p -> result = (double)(result - FIRST_XOP_ERR);
+        #ifdef NO_IGOR_ERR
+            return (0);
+        #else
+            return (result);
+        #endif
     }
     switch(outPutWaveType){
         case NT_I8:
@@ -570,14 +552,14 @@ int ProjectSpecFrames (ProjectSpecFramesParamsPtr p){
     WMDisposePtr ((Ptr)paramArrayPtr);
     WaveHandleModified(outPutWaveH); // Inform Igor that we have changed the output wave.
     // set results to what should be 0 and return
-    p->result= result;
-    return result;
+    p->result= (0);
+    return (0);
 }
 
 /*****************************************************************************************************************
  Makes a projection Image of all columns or rows or layers in the input wave and makes a 2D wave to put the result into
  Last Modified 2013/07/16 by Jamie Boyd */
-int ProjectAllFrames (ProjectAllFramesParamsPtr p){
+extern "C" int ProjectAllFrames (ProjectAllFramesParamsPtr p){
 	int result =0;	// The error returned from various Wavemetrics functions
 	waveHndl inPutWaveH, outPutWaveH; // Handles to the input and output waves
 	int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
@@ -594,16 +576,13 @@ int ProjectAllFrames (ProjectAllFramesParamsPtr p){
 	try{
 		// Get handle to input wave make sure it exists.
 		inPutWaveH = p->inPutWaveH;
-		if (inPutWaveH == NIL)
-			throw result = NON_EXISTENT_WAVE;
+		if (inPutWaveH == NIL) throw result = NON_EXISTENT_WAVE;
 		// Get wave data type
 		waveType = WaveType(inPutWaveH);
 		// Check that we don't have a text wave
-		if (waveType==TEXT_WAVE_TYPE)
-			throw result = NOTEXTWAVES;
+		if (waveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
 		// Get number of used numDimensions in input wave.
-		if (result = MDGetWaveDimensions(inPutWaveH, &numDimensions, inPutDimensionSizes))
-			throw result;
+		if (MDGetWaveDimensions(inPutWaveH, &numDimensions, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
 		// Check that input wave is 3D
 		if (numDimensions != 3)
 			throw result = INPUTNEEDS_3D_WAVE;
@@ -641,21 +620,27 @@ int ProjectAllFrames (ProjectAllFramesParamsPtr p){
 			// Clean up wave name: no liberal names
 			CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
             //check that data folder is valid and get a handle to the datafolder
-			if (result = GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result;
+			if (GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result = WAVEERROR_NOS;
 			//Test for overwriting
 			WaveName (inPutWaveH, inPutWaveName);
 			GetWavesDataFolder (inPutWaveH, &inPutDFHandle);
 			GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath);
 			if ((CmpStr (inPutPath,outPutPath) ==0) && (CmpStr (inPutWaveName,outPutWaveName) ==0)){	// Then we would overrite input wave
-				if (overWrite == NO_OVERWITE)
-					throw result = OVERWRITEALERT;
+				if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
 				flatten = 1;
 			}else{
 				// make the output wave
-				if (result = MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, outPutDimensionSizes,waveType, overWrite))
-					throw result;
-			}
-		}
+				if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, outPutDimensionSizes,waveType, overWrite)) throw result = WAVEERROR_NOS;
+                }
+            }
+        }catch (int (result)){
+            p -> result = (double)(result - FIRST_XOP_ERR);
+            #ifdef NO_IGOR_ERR
+                return (0);
+            #else
+                return (result);
+            #endif
+        }
 		// fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
 		ProjectSpecFramesParams Spec;
 		ProjectSpecFramesParamsPtr pSpec = &Spec;
@@ -666,22 +651,14 @@ int ProjectAllFrames (ProjectAllFramesParamsPtr p){
 		Spec.outPutLayer =0;
 		Spec.projMode = p->projMode;
 		Spec.flatDimension=p->flatDimension;
-		if (result = ProjectSpecFrames (pSpec))
-			throw result;
+		ProjectSpecFrames(pSpec);
 		if (flatten){
-			if (result = MDChangeWave (outPutWaveH, -1, outPutDimensionSizes))
-                throw result;
+            MDChangeWave (outPutWaveH, -1, outPutDimensionSizes);
 		}
 		if (p->outPutPath)
 			WMDisposeHandle(p->outPutPath);
-		p->result = result;
-		return result;
-	}catch (int (result)){
-		if (p->outPutPath)
-			WMDisposeHandle(p->outPutPath);
-		p->result= result;
-		return result;
-	}
+		p->result = (0);
+		return (0);
 }
 
 /*****************************************************************************************************************
@@ -691,8 +668,7 @@ int ProjectAllFrames (ProjectAllFramesParamsPtr p){
  waveHndl outPutWaveH;	//handle to the output wave
  waveHndl inPutWaveH;//handle to the input wave*/
 
-int ProjectXSlice (ProjectSliceParamsPtr p)
-{
+extern "C" int ProjectXSlice (ProjectSliceParamsPtr p) {
 	int result;
 	// fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
 	ProjectSpecFramesParams Spec;
@@ -710,8 +686,7 @@ int ProjectXSlice (ProjectSliceParamsPtr p)
 
 /*****************************************************************************************************************/
 // Gets a Y slice from a 3D wave and puts it a pre-existing 2D wave of the right dimensions
-int ProjectYSlice (ProjectSliceParamsPtr p){
-	
+extern "C" int ProjectYSlice (ProjectSliceParamsPtr p){
 	int result;
 	// fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
 	ProjectSpecFramesParams Spec;
@@ -729,8 +704,7 @@ int ProjectYSlice (ProjectSliceParamsPtr p){
 
 /*****************************************************************************************************************/
 // Gets a Z slice from a 3D wave and puts it a pre-existing 2D wave of the right dimensions
-int ProjectZSlice (ProjectSliceParamsPtr p){
-	
+extern int ProjectZSlice (ProjectSliceParamsPtr p){
 	int result;
 	// fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
 	ProjectSpecFramesParams Spec;

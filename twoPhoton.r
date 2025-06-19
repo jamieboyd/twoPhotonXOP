@@ -15,10 +15,20 @@ resource 'vers' (2) {                        /* Igor version info */
     "(for Igor 8.00 or later)"
 };
 
+resource 'STR#' (1101) {
+    {
+        // Misc strings that Igor looks for.
+        "-1",
+        "---",
+        "twoPhotonXOP", // Name of XOP's help file.
+    }
+};
+
+
 resource 'STR#' (1100) {					/* custom error messages */
 	{
         /* [1] OLD_IGOR */
-        "twoP requires Igor Pro 8.00 or later.",
+        "twoPhotonXOP requires Igor Pro 8.00 or later.",
         /* [2] NON_EXISTENT_WAVE */
         "One of the input waves does not exist.",
         /* [3] INPUTNEEDS_3D_WAVE */
@@ -45,8 +55,8 @@ resource 'STR#' (1100) {					/* custom error messages */
         "The scaling factor specified does not divide evenly into the image width.",
         /*[14] BADDSTYPE */
         "The Down Sample Type was not recognized. Allowed types are 1 = average, 2 = sum, 3 = max, 4 = median.",
-        /*[15] USERABORT */
-        "Procedure Aborted.",
+        /*[15] WAVEERROR_NOS */
+        "A wave access error ocurred.",
         /*[16] OVERWRITEALERT*/
         "Destination wave already exists and can not be overwritten.",
         /*[17] NOTEXTWAVES */
@@ -61,6 +71,8 @@ resource 'STR#' (1100) {					/* custom error messages */
         "One of the waves specified in the input list does not exist.",
         /*[22] BADSYMKERNEL */
         "A symmetric convolution kernel must be a 1D single precision floating point wave of odd length.",
+        /*[23] NOTUNSIGNED */
+        "This function only works with unsigned integer data.",
 	}
 };
 
@@ -237,5 +249,6 @@ resource 'XOPF' (1100) {
             NT_FP64,    // Width over which to apply median
             NT_FP64,  // flag to overwrite existing waves.
         },
+
     }
 };
