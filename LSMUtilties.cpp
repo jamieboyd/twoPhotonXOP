@@ -163,12 +163,24 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
     return (0);
 }
 
+
+//Structure to pass data to each DownSample thread
+//Last Modified 2013/07/15 by Jamie Boyd */
+typedef struct DownSampleThreadParams{
+    int inPutWaveType;
+    char* dataStartPtr;
+    CountInt points;
+    CountInt boxFactor;
+    UInt8 DSType;
+    UInt8 ti; // number of this thread, starting from 0
+    UInt8 tN; // total number of threads (255 "should be enough for anyone")
+}DownSampleThreadParams, *DownSampleThreadParamsPtr;
+
 /********************************************************************************************************************
 Template functions for the various DownSample methods
 Case 1 Kalman-style averaging.
 Last Modified 2013/07/15 by Jamie Boyd */
-template <typename T> void DSaverageT (T *dataStartPtr, CountInt points, UInt16 boxFactor)
-{
+template <typename T> void DSaverageT (T *dataStartPtr, CountInt points, UInt16 boxFactor) {
     // make Pointer to the end of the data
     T *dataEndPtr = dataStartPtr + points;
     T *outPutPtr; // output position varies slowly
@@ -186,8 +198,7 @@ template <typename T> void DSaverageT (T *dataStartPtr, CountInt points, UInt16 
 
 // Case 2: Summing. Need different function for different bounds checking for floats, signed ints, and unsigned ints
 //Floats: Don't check Max or Min - overflows should automatically go to INF and -INF
-template <typename T> void DSsumFloatT (T *dataStartPtr, CountInt points, UInt16 boxFactor)
-{
+template <typename T> void DSsumFloatT (T *dataStartPtr, CountInt points, UInt16 boxFactor) {
     T *dataEndPtr = dataStartPtr + points;
     T *outPutPtr;
     T *inPutPtr;
@@ -199,8 +210,7 @@ template <typename T> void DSsumFloatT (T *dataStartPtr, CountInt points, UInt16
 }
 
 // Signed Ints: Check OverFlows at both ends (Max and Min)
-template <typename T> void DSsumSignedIntT (T *dataStartPtr, CountInt points, UInt16 boxFactor, T Tmax, T Tmin)
-{
+template <typename T> void DSsumSignedIntT (T *dataStartPtr, CountInt points, UInt16 boxFactor, T Tmax, T Tmin){
     T *dataEndPtr = dataStartPtr + points;
     T *outPutPtr;
     T *inPutPtr;
@@ -220,8 +230,7 @@ template <typename T> void DSsumSignedIntT (T *dataStartPtr, CountInt points, UI
 }
 
 // Unsigned integer types: Check OverFlows only for Max
-template <typename T> void DSsumUnSignedIntT (T *dataStartPtr, CountInt points, UInt16 boxFactor, T Tmax)
-{
+template <typename T> void DSsumUnSignedIntT (T *dataStartPtr, CountInt points, UInt16 boxFactor, T Tmax){
     T *dataEndPtr = dataStartPtr + points;
     T *outPutPtr;
     T *inPutPtr;
@@ -239,8 +248,7 @@ template <typename T> void DSsumUnSignedIntT (T *dataStartPtr, CountInt points, 
 }
 
 //Case 3: Take maximum Value
-template <typename T> void DSMaxT (T *dataStartPtr, CountInt points, UInt16 boxFactor)
-{
+template <typename T> void DSMaxT (T *dataStartPtr, CountInt points, UInt16 boxFactor){
     // make Pointer to the end of the data
     T *dataEndPtr = dataStartPtr + points;
     T *outPutPtr;
@@ -258,8 +266,7 @@ template <typename T> void DSMaxT (T *dataStartPtr, CountInt points, UInt16 boxF
 }
 
 //case 4: take median value.
-template <typename T> void DSMedianT (T *dataStartPtr, CountInt points, UInt16 boxFactor)
-{
+template <typename T> void DSMedianT (T *dataStartPtr, CountInt points, UInt16 boxFactor){
     // make Pointer to the end of the data
     T *dataEndPtr = dataStartPtr + points;
     T *outPutPtr;
@@ -305,6 +312,156 @@ template <typename T> void DSMedianT (T *dataStartPtr, CountInt points, UInt16 b
         }
     }
 }
+
+/**********************************************************************************************************************
+Each thread to down sampe a range of points  starts with this function
+Last Modified 2025/06/23 by Jamie Boyd */
+void* DownSampleThread (void* threadarg){
+    
+    struct DownSampleThreadParams* p;
+    p = (struct DownSampleThreadParams*) threadarg;
+    CountInt tPoints = (p->points/p->tN);  // number of points to do per thread
+    CountInt startPos = p->ti * tPoints;   // starting position for this thread
+    if (p->ti == p->tN - 1) tPoints +=  (p->points % p->tN); // the last thread gets any left-over points
+    CountInt boxFactor = p->boxFactor;
+    UInt8 DSType = p->DSType;
+    char* dataStartPtr = p->dataStartPtr;
+    // call the right template function for the wave types
+    switch (p->inPutWaveType) {
+        case NT_FP64:
+            switch (DSType){
+                case 1:    //average
+                    DSaverageT ((double*) dataStartPtr + startPos , tPoints, boxFactor);
+                    break;
+                case 2: // sum
+                    DSsumFloatT ((double*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 3: //max
+                    DSMaxT ((double*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 4: // median
+                    DSMedianT ((double*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+            }
+            break;
+        case NT_FP32:
+            switch (DSType){
+                case 1:    //average
+                    DSaverageT ((float*) dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 2: // sum
+                    DSsumFloatT ((float*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 3: //max
+                    DSMaxT ((float*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 4: // median
+                    DSMedianT ((float*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+            }
+            break;
+        case (NT_I32 | NT_UNSIGNED):
+            switch (DSType){
+                case 1:    //average
+                    DSaverageT ((unsigned long*) dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 2: // sum
+                    DSsumUnSignedIntT ((unsigned long*)dataStartPtr + startPos, tPoints, boxFactor,(unsigned long)ULONG_MAX);
+                    break;
+                case 3: //max
+                    DSMaxT ((unsigned long*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 4: // median
+                    DSMedianT ((unsigned long*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+            }
+            break;
+        case NT_I32:
+            switch (DSType){
+                case 1:    //average
+                    DSaverageT ((long*) dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 2: // sum
+                    DSsumSignedIntT ((long*)dataStartPtr + startPos, tPoints, boxFactor,(long)LONG_MAX, (long)LONG_MIN);
+                    break;
+                case 3: //max
+                    DSMaxT ((long*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 4: // median
+                    DSMedianT ((long*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+            }
+            break;
+        case (NT_I16 | NT_UNSIGNED):
+            switch (DSType){
+                case 1:    //average
+                    DSaverageT ((unsigned short*) dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 2: // sum
+                    DSsumUnSignedIntT ((unsigned short*)dataStartPtr + startPos, tPoints, boxFactor,(unsigned short)USHRT_MAX);
+                    break;
+                case 3: //max
+                    DSMaxT ((unsigned short*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 4: // median
+                    DSMedianT ((unsigned short*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+            }
+            break;
+        case NT_I16:
+            switch (DSType){
+                case 1:    //average
+                    DSaverageT ((short*) dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 2: // sum
+                    DSsumSignedIntT ((short*)dataStartPtr + startPos, tPoints, boxFactor,(short)SHRT_MAX, (short)SHRT_MIN);
+                    break;
+                case 3: //max
+                    DSMaxT ((short*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 4: // median
+                    DSMedianT ((short*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+            }
+            break;
+        case (NT_I8 | NT_UNSIGNED):
+            switch (DSType){
+                case 1:    //average
+                    DSaverageT ((unsigned char*) dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 2: // sum
+                    DSsumUnSignedIntT ((unsigned char*)dataStartPtr + startPos, tPoints, boxFactor,(unsigned char)UCHAR_MAX);
+                    break;
+                case 3: //max
+                    DSMaxT ((unsigned char*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 4: // median
+                    DSMedianT ((unsigned char*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+            }
+            break;
+        case NT_I8:
+            switch (DSType){
+                case 1:    //average
+                    DSaverageT ((char*) dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 2: // sum
+                    DSsumSignedIntT ((char*)dataStartPtr + startPos, tPoints, boxFactor,(char)SCHAR_MAX, (char)SCHAR_MIN);
+                    break;
+                case 3: //max
+                    DSMaxT ((char*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+                case 4: // median
+                    DSMedianT ((char*)dataStartPtr + startPos, tPoints, boxFactor);
+                    break;
+            }
+            break;
+    }    // end of switch
+    return NULL;
+}
+
+
+
 
 /*****************************************************************************************************************
 Down Sample takes a wave and resizes its X dimension, combining boxfactor points by taking the average/sum/max/median value
@@ -352,10 +509,9 @@ extern "C" int DownSample (DownSampleParamsPtr p) {
             zSize = dimensionSizes [2];
             points = xSize * ySize * zSize;
         }
+        // get wave handle
         if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result = WAVEERROR_NOS;
-        //make pointer to start of data
-        dataStartPtr = (char*)(*wavH) + dataOffset;
-        // call appropriate template function for the chosen downsample type for each wave type
+        
     }catch (int result){
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
@@ -364,136 +520,35 @@ extern "C" int DownSample (DownSampleParamsPtr p) {
         return (result);
 #endif
     }
-    switch (waveType) {
-        case NT_FP64:
-            switch (DSType){
-            case 1:    //average
-                DSaverageT ((double*) dataStartPtr, points, boxFactor);
-                break;
-            case 2: // sum
-                DSsumFloatT ((double*)dataStartPtr, points, boxFactor);
-                break;
-            case 3: //max
-                DSMaxT ((double*)dataStartPtr, points, boxFactor);
-                break;
-            case 4: // median
-                DSMedianT ((double*)dataStartPtr, points, boxFactor);
-                break;
-            }
-            break;
-        case NT_FP32:
-            switch (DSType){
-            case 1:    //average
-                DSaverageT ((float*) dataStartPtr, points, boxFactor);
-                break;
-            case 2: // sum
-                DSsumFloatT ((float*)dataStartPtr, points, boxFactor);
-                break;
-            case 3: //max
-                DSMaxT ((float*)dataStartPtr, points, boxFactor);
-                break;
-            case 4: // median
-                DSMedianT ((float*)dataStartPtr, points, boxFactor);
-                break;
-            }
-            break;
-        case (NT_I32 | NT_UNSIGNED):
-            switch (DSType){
-            case 1:    //average
-                DSaverageT ((unsigned long*) dataStartPtr, points, boxFactor);
-                break;
-            case 2: // sum
-                DSsumUnSignedIntT ((unsigned long*)dataStartPtr, points, boxFactor,(unsigned long)ULONG_MAX);
-                break;
-            case 3: //max
-                DSMaxT ((unsigned long*)dataStartPtr, points, boxFactor);
-                break;
-            case 4: // median
-                DSMedianT ((unsigned long*)dataStartPtr, points, boxFactor);
-                break;
-            }
-            break;
-        case NT_I32:
-            switch (DSType){
-            case 1:    //average
-                DSaverageT ((long*) dataStartPtr, points, boxFactor);
-                break;
-            case 2: // sum
-                DSsumSignedIntT ((long*)dataStartPtr, points, boxFactor,(long)LONG_MAX, (long)LONG_MIN);
-                break;
-            case 3: //max
-                DSMaxT ((long*)dataStartPtr, points, boxFactor);
-                break;
-            case 4: // median
-                DSMedianT ((long*)dataStartPtr, points, boxFactor);
-                break;
-            }
-            break;
-        case (NT_I16 | NT_UNSIGNED):
-            switch (DSType){
-            case 1:    //average
-                DSaverageT ((unsigned short*) dataStartPtr, points, boxFactor);
-                break;
-            case 2: // sum
-                DSsumUnSignedIntT ((unsigned short*)dataStartPtr, points, boxFactor,(unsigned short)USHRT_MAX);
-                break;
-            case 3: //max
-                DSMaxT ((unsigned short*)dataStartPtr, points, boxFactor);
-                break;
-            case 4: // median
-                DSMedianT ((unsigned short*)dataStartPtr, points, boxFactor);
-                break;
-            }
-            break;
-        case NT_I16:
-            switch (DSType){
-            case 1:    //average
-                DSaverageT ((short*) dataStartPtr, points, boxFactor);
-                break;
-            case 2: // sum
-                DSsumSignedIntT ((short*)dataStartPtr, points, boxFactor,(short)SHRT_MAX, (short)SHRT_MIN);
-                break;
-            case 3: //max
-                DSMaxT ((short*)dataStartPtr, points, boxFactor);
-                break;
-            case 4: // median
-                DSMedianT ((short*)dataStartPtr, points, boxFactor);
-                break;
-            }
-            break;
-        case (NT_I8 | NT_UNSIGNED):
-            switch (DSType){
-            case 1:    //average
-                DSaverageT ((unsigned char*) dataStartPtr, points, boxFactor);
-                break;
-            case 2: // sum
-                DSsumUnSignedIntT ((unsigned char*)dataStartPtr, points, boxFactor,(unsigned char)UCHAR_MAX);
-                break;
-            case 3: //max
-                DSMaxT ((unsigned char*)dataStartPtr, points, boxFactor);
-                break;
-            case 4: // median
-                DSMedianT ((unsigned char*)dataStartPtr, points, boxFactor);
-                break;
-            }
-            break;
-        case NT_I8:
-            switch (DSType){
-            case 1:    //average
-                DSaverageT ((char*) dataStartPtr, points, boxFactor);
-                break;
-            case 2: // sum
-                DSsumSignedIntT ((char*)dataStartPtr, points, boxFactor,(char)SCHAR_MAX, (char)SCHAR_MIN);
-                break;
-            case 3: //max
-                DSMaxT ((char*)dataStartPtr, points, boxFactor);
-                break;
-            case 4: // median
-                DSMedianT ((char*)dataStartPtr, points, boxFactor);
-                break;
-            }
-            break;
-    }    // end of switch
+    // make pointer to start of wave data
+    dataStartPtr = (char*)(*wavH) + dataOffset;
+    
+    // Multi threading
+    UInt8 iThread, nThreads = gNumProcessors;
+    DownSampleThreadParamsPtr paramArrayPtr= (DownSampleThreadParamsPtr)WMNewPtr(nThreads * sizeof(DownSampleThreadParams));
+    for (iThread = 0; iThread < nThreads; iThread++){
+        paramArrayPtr[iThread].inPutWaveType = waveType;
+        paramArrayPtr[iThread].dataStartPtr = dataStartPtr;
+        paramArrayPtr[iThread].points = points;
+        paramArrayPtr[iThread].boxFactor = boxFactor;
+        paramArrayPtr[iThread].DSType = DSType;
+        paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
+        paramArrayPtr[iThread].tN =nThreads; // total number of threads
+    }
+    // make an array of pthread_t
+    pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+    // create the threads
+    for (iThread = 0; iThread < nThreads; iThread++){
+        pthread_create (&threadsPtr[iThread], NULL, DownSampleThread, (void *) &paramArrayPtr[iThread]);
+    }
+    // Wait till all the threads are finished
+    for (iThread = 0; iThread < nThreads; iThread++){
+        pthread_join (threadsPtr[iThread], NULL);
+    }
+    // free memory for pThreads Array
+    WMDisposePtr ((Ptr)threadsPtr);
+    // Free paramaterArray memory
+    WMDisposePtr ((Ptr)paramArrayPtr);
     dimensionSizes [0] = xSize/boxFactor;
     dimensionSizes [1] = ySize;
     dimensionSizes [2] = zSize;
@@ -504,7 +559,7 @@ extern "C" int DownSample (DownSampleParamsPtr p) {
     return (0);
 }
 
-/****************************Decumulate Functions***********************************************************/
+/************************Decumulate Functions***********************************************************/
 // The following template is used to handle any one of the different types of wave data
 template <typename T> void DecumulateT(T *srcWaveStart, CountInt NumPnts, UInt32 epMax, UInt32 maxCount){
     T *srcWavePtr;
