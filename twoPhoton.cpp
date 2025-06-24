@@ -7,7 +7,6 @@ Last Modified:
 
 #include "twoPhoton.h"
 
-/* sanity check function for getting number of processors should return same as ThreadProcessorCount*/
 // Global Variable for number of processors for threading
 UInt8 gNumProcessors;
 
@@ -20,55 +19,57 @@ static XOPIORecResult RegisterFunction() {
 
     funcIndex = (int)GetXOPItem(0);		// Which function is Igor asking about?
     switch (funcIndex) {
-    case 0:
+        case 0:
+            return((XOPIORecResult)GetSetNumProcessors);
+    case 1:
         return((XOPIORecResult)KalmanAllFrames);    // All functions are called using the direct method.
         break;
-    case 1:
+    case 2:
         return ((XOPIORecResult)KalmanSpecFrames);
         break;
-    case 2:
+    case 3:
         return ((XOPIORecResult)KalmanWaveToFrame);
         break;
-    case 3:
+    case 4:
         return ((XOPIORecResult)KalmanList);
         break;
-    case 4:
+    case 5:
         return ((XOPIORecResult)KalmanNext);
         break;
-    case 5:
+    case 6:
         return ((XOPIORecResult)ProjectAllFrames);
         break;
-    case 6:
+    case 7:
         return ((XOPIORecResult)ProjectSpecFrames);
         break;
-    case 7:
+    case 8:
         return ((XOPIORecResult)ProjectXSlice);
         break;
-    case 8:
+    case 9:
         return ((XOPIORecResult)ProjectYSlice);
         break;
-    case 9:
+    case 10:
         return ((XOPIORecResult)ProjectZSlice);
         break;
-    case 10:
+    case 11:
         return ((XOPIORecResult)SwapEven);
         break;
-    case 11:
+    case 12:
         return ((XOPIORecResult)DownSample);
         break;
-    case 12:
+    case 13:
         return ((XOPIORecResult)Decumulate);
         break;
-    case 13:
+    case 14:
         return ((XOPIORecResult)TransposeFrames);
         break;
-    case 14:
+    case 15:
         return ((XOPIORecResult)ConvolveFrames);
         break;
-    case 15:
+    case 16:
         return ((XOPIORecResult)SymConvolveFrames);
         break;
-    case 16:
+    case 17:
         return ((XOPIORecResult)MedianFrames);
         break;
     }
@@ -105,9 +106,9 @@ HOST_IMPORT int XOPMain(IORecHandle ioRecHandle) {		// The use of XOPMain rather
         return EXIT_FAILURE;
     }
     gNumProcessors = num_processors();
-    char XOPbuffer [128];
-    sprintf(XOPbuffer, "TwoPhotonXOP found %d processor cores in this system.\r", gNumProcessors);
-    XOPNotice (XOPbuffer);
+    // char XOPbuffer [128];
+    // sprintf(XOPbuffer, "TwoPhotonXOP found %d processor cores in this system.\r", gNumProcessors);
+    // XOPNotice (XOPbuffer);
     SetXOPResult(0L);
     return EXIT_SUCCESS;
 }

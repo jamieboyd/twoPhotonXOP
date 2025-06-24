@@ -9,9 +9,10 @@
 #include "XOPStandardHeaders.h"            // Include ANSI headers, Mac headers, IgorXOP.h, XOP.h and XOPSupport.h
 
 
-#define NO_IGOR_ERR    // when defined, all functions return 0 to avoid modal dialogs
+//#define NO_IGOR_ERR   // when defined, all functions return 0 to avoid modal dialogs
+#undef NO_IGOR_ERR      // when not defined, functions return error codes that invoke modal dialogs
 
-/* twoP custom error codes - also serve as return values from functions */
+/* twoP custom error codes - also serve as return values from functions, after subtracting FIRST_XOP_ERR */
 #define OLD_IGOR 1 + FIRST_XOP_ERR
 #define NON_EXISTENT_WAVE 2 + FIRST_XOP_ERR
 #define INPUTNEEDS_3D_WAVE 3 + FIRST_XOP_ERR
@@ -35,6 +36,8 @@
 #define BADWAVEINLIST 21 + FIRST_XOP_ERR
 #define BADSYMKERNEL 22 + FIRST_XOP_ERR
 #define NOTUNSIGNED 23 + FIRST_XOP_ERR
+#define MEMFAIL 24 + FIRST_XOP_ERR
+#define NUMTYPE 25 + FIRST_XOP_ERR
 
 // mnemonic defines
 #define OVERWRITE 1
@@ -72,8 +75,6 @@ static inline int num_processors() {
     return np;
 }
 #endif
-// an array of pthread_t for pthreads on Windows or MacOS
-extern pthread_t* gThreadsPtr;
 
 // Structure definitions. All structures passed to Igor are two-byte aligned
 #pragma pack(2)
@@ -118,7 +119,7 @@ typedef struct KalmanListParams {
 typedef struct KalmanNextParams {
     double iKal; //which number of wave are we adding
     waveHndl outPutWaveH;//handle to output wave
-    waveHndl inPutWaveH; // handle to output wave
+    waveHndl inPutWaveH; // handle to iinput wave
     UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 }KalmanNextParams, * KalmanNextParamsPtr;
@@ -155,6 +156,10 @@ typedef struct ProjectSliceParams {
 }ProjectSliceParams, * ProjectSliceParamsPtr;
 
 // LSM Utilities
+typedef struct GetSetNumProcessorsParams{
+    double result;
+}GetSetNumProcessorsParams, *GetSetNumProcessorsParamsPtr;
+
 typedef struct SwapEvenParams {
     waveHndl w1;
     UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
@@ -209,6 +214,7 @@ typedef struct MedianFramesParams {
 /* Prototypes */
 HOST_IMPORT int XOPMain(IORecHandle ioRecHandle);
 //LSM Utilities
+extern "C" int GetSetNumProcessors(GetSetNumProcessorsParamsPtr p);
 extern "C" int SwapEven(SwapEvenParamsPtr);
 extern "C" int DownSample(DownSampleParamsPtr p);
 extern "C" int Decumulate(DecumulateParamsPtr p);

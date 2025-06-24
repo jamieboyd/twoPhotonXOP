@@ -1,30 +1,93 @@
 #include "twoPhoton.h"
-/**********************************************************************************************************************
+/* ----------------------------------------Filter ------------------------------------------------------------------
  Code for filtering waves with 2D convolution kernels - arbitrary, symetrical, or median
- Last Modified 2025/06/18 by Jamie Boyd
- *********************************************************************************************************************/
+ Last Modified 2025/06/23 by Jamie Boyd
+--------------------------------------------------------------------------------------------------------------------*/
 
-/* Structure to pass data to each ConvolveFrames thread or ConvolveSymFrames thread
+
+/* ------------------------------------ convolution with a 2D kernel ------------------------------------------
+ convolves each frame in input wave with an arbitrary sized 2D kernel
+ --------------------------------------------------------------------------------------------------------------*/
+
+/* Makes a table of weights for a 2D kernel
  Last Modified 2014/01/20 by Jamie Boyd */
-typedef struct ConvolveFramesThreadParams{
-	int inPutWaveType;		// WaveMetrics code for waveType
-	char* inPutDataPtr; // pointer to start of input wave
-	char* outPutDataPtr;// pointer to strat of output wave
-	CountInt xSize;			// number of columns in each frame
-	CountInt ySize;			// number of rows in each frame
-	CountInt zSize;			// number of frames
-	UInt8 ti;				// number of this thread, starting from 0
-	UInt8 tN;				// total number of threads
-	float * kernelDataPtr;	// pointer to start of kernel
-    float * kernelTablePtr; // pointer to start of kernel table
-	UInt16 kWidth;			// number of columns in kernel
-	UInt16 kHeight;			// number of rows in kernel (ignored by convolveSymFrames)
-	UInt8 isFloat;			// waveType of outPut wave. 0 for same type as input wave, 1 for floating point wave
-} ConvolveFramesThreadParams, *ConvolveFramesThreadParamsPtr;
+float* ConvolveMakeKernelTable (float * kernel, int kWidth, int kHeight){
+    int kRadH = (kHeight -1)/2;
+    int kRadW = (kWidth-1)/2;
+    int kSize = kWidth * kHeight;
+    // allocate memory for kernel table
+    float * kernelTablePtr =(float*) WMNewPtr (kSize * sizeof (float));
+    if (kernelTablePtr == NULL) return NULL;
+    int iConvo, convoEnd, convoToNextRow;
+    int kx, ky;
+    // get value for first point in kernel table
+    int iKT =0;
+     kernelTablePtr [iKT] = 0;
+    convoToNextRow=kRadW;
+    //yLoop
+    for (iConvo = kSize -1; iConvo >= (kSize/2); iConvo -= convoToNextRow){
+        // xLoop
+        for (convoEnd = iConvo - kRadW ; iConvo >= convoEnd; iConvo -=1){
+            kernelTablePtr [iKT]  += kernel [iConvo];
+        }
+    }
+    // get values for first column in kernelTable- adding a row to kernel each time
+    for (iKT =kWidth; iKT <  (kSize/2) + 1;  iKT +=kWidth, iConvo -= convoToNextRow){
+        kernelTablePtr [iKT] = kernelTablePtr [iKT -kWidth];
+        // convo X
+        for (convoEnd = iConvo - kRadW ; iConvo >= convoEnd; iConvo -=1){
+            kernelTablePtr [iKT] += kernel [iConvo];
+        }
+    }
+    // left edge bottom - removing a row from kernel each time
+    for (iConvo = kSize -1; iKT < kSize; iKT += kWidth, iConvo -= convoToNextRow){
+        kernelTablePtr [iKT] = kernelTablePtr [iKT -kWidth];
+        // convo X
+        for (convoEnd = iConvo - kRadW ; iConvo >= convoEnd; iConvo -=1){
+            kernelTablePtr [iKT] -= kernel [iConvo];
+        }
+    }
+    // Now do each row based on column 0 of that row
+    // top
+    for (ky =0, iKT =1; ky <= kRadH; ky +=1, iKT +=1){
+        // top left - adding a new column at left each time
+        for (kx =1; kx <= kRadW; kx +=1, iKT +=1){
+            kernelTablePtr [iKT] = kernelTablePtr [iKT - 1];
+            for (iConvo = (kRadH - ky)* kWidth + kRadW -kx; iConvo < kSize; iConvo += kWidth){
+                kernelTablePtr [iKT] += kernel [iConvo];
+            }
+        }
+        // top right - removing a column at right eadh time
+        for (kx-=1; kx > 0; kx -=1, iKT +=1){
+            kernelTablePtr [iKT] = kernelTablePtr [iKT - 1];
+            for (iConvo =(kRadH - ky)* kWidth + kRadW + kx ; iConvo < kSize; iConvo += kWidth){
+                kernelTablePtr [iKT] -= kernel [iConvo];
+            }
+        }
+    }
+    // bottom
+    for (ky -=1; ky > 0; ky -=1, iKT +=1){
+        // bottom left - adding a new column at left each time
+        for (kx =1; kx <= kRadW; kx +=1, iKT +=1){
+            kernelTablePtr [iKT] = kernelTablePtr [iKT - 1];
+            for (iConvo = kRadW -kx, convoEnd = (kRadH + ky) * kWidth ; iConvo < convoEnd; iConvo += kWidth){
+                kernelTablePtr [iKT] += kernel [iConvo];
+            }
+        }
+        // bottom right - removing a  column at right each time
+        for (kx -=1; kx > 0; kx -=1, iKT +=1){
+            kernelTablePtr [iKT] = kernelTablePtr [iKT - 1];
+            for (iConvo = kRadW + kx, convoEnd = (kRadH + ky) * kWidth; iConvo < convoEnd; iConvo += kWidth){
+                kernelTablePtr [iKT] -= kernel [iConvo];
+            }
+        }
+    }
+    return kernelTablePtr;
+}
 
-
-/******************************************************************************************************
- Function template to convolve a single row in an image.  Doesn't need to explicitly know image Y size/position within Y or Kernel Y size. Just needs to know start-Y and end-Y position in the kernel. So the same function can be called for any Y position in an image.
+/* Function template to convolve a single row in an image.  Doesn't need to explicitly know image Y size/position within Y or
+ Kernel Y size. Just needs to know start-Y and end-Y position in the kernel. So the same function can be called for any Y
+ position in an image. Note that destWave is passed by reference
  Last modified 2014/01/24 by Jamie Boyd */
 template <typename TI, typename TO> void ConvolveX (TI *srcWave, TO *&destWave, float *kernel, float *kernelTable, UInt16 nKernelX, UInt16 radKernelX, CountInt nWaveX, UInt16 endKernelY, UInt16 &startKernel, CountInt &startConvo, UInt16 &ikernelTable, UInt16 &toNextKernelX, CountInt &nConvoX, CountInt &toNextConvoX){
     
@@ -89,24 +152,21 @@ template <typename TI, typename TO> void ConvolveX (TI *srcWave, TO *&destWave, 
         } // end of Y loop for Convo
         // set output value
         *destWave = outVal/kernelTable[ikernelTable];
-        destWave +=1;
+        destWave += 1;
         startConvo += 1;
         ikernelTable += 1; // move to next position in kernel table
     } // End of X Loop for RIGHT
 }
 
 
-/****************************************************************************************************************
- function template for convolving one wave with another and putting results in an output wave.
+/* function template for convolving one wave with another and putting results in an output wave.
  Input wave can be 2 or 3D, but each plane is done as a separate 2D image.
  Last Modified 2014/01/24 by Jamie Boyd */
-template <typename TI, typename TO> int ConvolveT (TI* srcWave, TO* destWave, CountInt nWaveX, CountInt nWaveY, CountInt nWaveZ, float* kernel, float * kernelTable, UInt16 nKernelX, UInt16 nKernelY){
-    
+template <typename TI, typename TO> void ConvolveT (TI* srcWave, TO* destWave, TO* frameBuffer, CountInt nWaveX, CountInt nWaveY, CountInt nWaveZ, float* kernel, float * kernelTable, UInt16 nKernelX, UInt16 nKernelY){
     UInt16 radKernelX = (nKernelX - 1)/2; //radius of the kernel width, not including the central pixel
     UInt16 radKernelY = (nKernelY - 1)/2; //radius of the kernel height, not including the central pixel
     UInt16 nKernel = nKernelX * nKernelY;
     CountInt fSize = (nWaveX * nWaveY);  //frame size
-    
     // iterating through kernel and kernel table
     UInt16 ikernelTable; // position in kernelTable
     UInt16 startKernel; // position of kernel at start of convolution of first pixel of the row
@@ -121,15 +181,10 @@ template <typename TI, typename TO> int ConvolveT (TI* srcWave, TO* destWave, Co
     TI *srcFramePtr=srcWave; // will point to start of each frame in input image
     TO *destPixPtr; // will point to each pixel in turn in output image
     TI *srcEndPtr = srcWave + fSize * nWaveZ; // end of data to process
-    // buffer, if we need one
     UInt8 inPlace = 0;
-    TO *buffer;
     if ((TI*)destWave == (TI*)srcWave){
 		inPlace = 1;
-		//Make a buffer big enough to hold a single frame. Use it for dest wave for each frame
-		buffer = (TO*) WMNewPtr (fSize *  sizeof (TO));
-		if (buffer == NULL) return NOMEM;
-        destPixPtr = buffer;
+        destPixPtr = frameBuffer;
     }else{
         destPixPtr = destWave;
     }
@@ -161,179 +216,114 @@ template <typename TI, typename TO> int ConvolveT (TI* srcWave, TO* destWave, Co
             ConvolveX (srcFramePtr, destPixPtr, kernel, kernelTable, nKernelX, radKernelX, nWaveX, endKernelY, startKernel, startConvo, ikernelTable, toNextKernelX, nConvoX, toNextConvoX);
             startConvo += radKernelX;
         }
-        // at end of frame, copy buffer back on top of src wave if doing in place filtering
+        // if convolving in place copy buffer back on top of src wave  at end of frame
         if (inPlace){
-            memcpy ((void*)srcFramePtr, (void*)buffer, fSize *  sizeof (TO));
-            destPixPtr = buffer; // reset destination pixel to start of buffer
+            memcpy ((void*)srcFramePtr, (void*)frameBuffer, fSize * sizeof (TO));
+            destPixPtr = frameBuffer; // reset destination pixel to start of buffer
         }
     }
-    // dispose of the temporary buffer we made
-    if (inPlace)
-        WMDisposePtr((Ptr)buffer);
-    return 0;
 }
 
 
-/*****************************************************************************************************************
- Makes a table of weights for a 2D kernel
- Last Modified 2014/01/20 by Jamie Boyd */
-float* ConvolveMakeKernelTable (float * kernel, int kWidth, int kHeight){
-    
-    int kRadH = (kHeight -1)/2;
-	int kRadW = (kWidth-1)/2;
-	int kSize = kWidth * kHeight;
-    
-    // allocate memory for kernel table
-    float * kernelTablePtr =(float*) WMNewPtr (kSize * sizeof (float));
-    if (kernelTablePtr == NULL) return NULL;
-	int iConvo, convoEnd, convoToNextRow;
-	int kx, ky;
-	// get value for first point in kernel table
-	int iKT =0;
- 	kernelTablePtr [iKT] = 0;
-	convoToNextRow=kRadW;
-	//yLoop
-	for (iConvo = kSize -1; iConvo >= (kSize/2); iConvo -= convoToNextRow){
-		// xLoop
-		for (convoEnd = iConvo - kRadW ; iConvo >= convoEnd; iConvo -=1){
-			kernelTablePtr [iKT]  += kernel [iConvo];
-        }
-    }
-    // get values for first column in kernelTable- adding a row to kernel each time
-    for (iKT =kWidth; iKT <  (kSize/2) + 1;  iKT +=kWidth, iConvo -= convoToNextRow){
-        kernelTablePtr [iKT] = kernelTablePtr [iKT -kWidth];
-        // convo X
-        for (convoEnd = iConvo - kRadW ; iConvo >= convoEnd; iConvo -=1){
-            kernelTablePtr [iKT] += kernel [iConvo];
-        }
-    }
-    // left edge bottom - removing a row from kernel each time
-    for (iConvo = kSize -1; iKT < kSize; iKT += kWidth, iConvo -= convoToNextRow){
-        kernelTablePtr [iKT] = kernelTablePtr [iKT -kWidth];
-        // convo X
-        for (convoEnd = iConvo - kRadW ; iConvo >= convoEnd; iConvo -=1){
-            kernelTablePtr [iKT] -= kernel [iConvo];
-        }
-    }
-    // Now do each row based on column 0 of that row
-    // top
-    for (ky =0, iKT =1; ky <= kRadH; ky +=1, iKT +=1){
-        // top left - adding a new column at left each time
-        for (kx =1; kx <= kRadW; kx +=1, iKT +=1){
-            kernelTablePtr [iKT] = kernelTablePtr [iKT - 1];
-            for (iConvo = (kRadH - ky)* kWidth + kRadW -kx; iConvo < kSize; iConvo += kWidth){
-                kernelTablePtr [iKT] += kernel [iConvo];
-            }
-        }
-        // top right - removing a column at right eadh time
-        for (kx-=1; kx > 0; kx -=1, iKT +=1){
-            kernelTablePtr [iKT] = kernelTablePtr [iKT - 1];
-            for (iConvo =(kRadH - ky)* kWidth + kRadW + kx ; iConvo < kSize; iConvo += kWidth){
-                kernelTablePtr [iKT] -= kernel [iConvo];
-            }
-        }
-    }
-    // bottom
-    for (ky -=1; ky > 0; ky -=1, iKT +=1){
-        // bottom left - adding a new column at left each time
-        for (kx =1; kx <= kRadW; kx +=1, iKT +=1){
-            kernelTablePtr [iKT] = kernelTablePtr [iKT - 1];
-            for (iConvo = kRadW -kx, convoEnd = (kRadH + ky) * kWidth ; iConvo < convoEnd; iConvo += kWidth){
-                kernelTablePtr [iKT] += kernel [iConvo];
-            }
-        }
-        // bottom right - removing a  column at right each time
-        for (kx -=1; kx > 0; kx -=1, iKT +=1){
-            kernelTablePtr [iKT] = kernelTablePtr [iKT - 1];
-            for (iConvo = kRadW + kx, convoEnd = (kRadH + ky) * kWidth; iConvo < convoEnd; iConvo += kWidth){
-                kernelTablePtr [iKT] -= kernel [iConvo];
-            }
-        }
-    }
-    return kernelTablePtr;
-}
+/* Structure to pass data to each ConvolveFrames thread or ConvolveSymFrames thread
+ Last Modified 2025/06/23 by Jamie Boyd */
+typedef struct ConvolveFramesThreadParams{
+    int inPutWaveType;          // WaveMetrics code for waveType
+    char* inPutDataPtr;         // pointer to start of input wave
+    char* outPutDataPtr;        // pointer to start of output wave
+    char* frameBufferPtr;       // pointer to frame sized buffer for symConvolveFrames, or when overwriting with ConvolveFrames
+    CountInt xSize;            // number of columns in each frame
+    CountInt ySize;            // number of rows in each frame
+    CountInt zSize;            // number of frames
+    UInt8 ti;                // number of this thread, starting from 0
+    UInt8 tN;                // total number of threads
+    float * kernelDataPtr;    // pointer to start of kernel
+    float * kernelTablePtr; // pointer to start of kernel table
+    UInt16 kWidth;            // number of columns in kernel
+    UInt16 kHeight;            // number of rows in kernel (ignored by convolveSymFrames)
+    UInt8 isFloat;            // waveType of outPut wave. 0 for same type as input wave, 1 for floating point wave
+} ConvolveFramesThreadParams, *ConvolveFramesThreadParamsPtr;
 
 
-/***********************************************************************************************************************
- Each thread to colvolve a range of frames starts with this function
+/* Each thread to colvolve a range of frames starts with this function
  Last Modified 2014/01/20 by Jamie Boyd */
 void* ConvolveFramesThread (void* threadarg){
-    
 	struct ConvolveFramesThreadParams* p;
 	p = (struct ConvolveFramesThreadParams*) threadarg;
 	CountInt tFrames = p->zSize/p->tN; //frames per thread = number of frames / number of threads, truncated to an integer
 	CountInt startPos = p->ti * tFrames; // which frame to start this thread on depends on thread number * frames per thread. ti is 0 based
 	if (p->ti == p->tN - 1) tFrames +=  (p->zSize % p->tN); // the last thread gets any left-over frames
-	startPos *= (p->xSize * p->ySize); //change start position from frames to data points by multiplying by frame size
+    CountInt frameSize =p->xSize * p->ySize;
+    startPos *= frameSize; //change start position from frames to data points by multiplying by frame size
+    CountInt bufferOffset;
+    if ((char*) p->inPutDataPtr == (char*) p->outPutDataPtr){
+        bufferOffset = p->ti * frameSize;
+    }else{
+        bufferOffset = 0;
+    }
 	if (p->isFloat){
 		switch (p->inPutWaveType) {
             case NT_I8:
-                ConvolveT ((char*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((char*)p->inPutDataPtr + startPos, (float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case (NT_I8 | NT_UNSIGNED):
-                ConvolveT ((unsigned char*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((unsigned char*)p->inPutDataPtr + startPos, (float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_I16:
-                ConvolveT ((short*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((short*)p->inPutDataPtr + startPos, (float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case (NT_I16 | NT_UNSIGNED):
-                ConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_I32:
-                ConvolveT ((long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case (NT_I32| NT_UNSIGNED):
-                ConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_FP32:
-                ConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_FP64:
-                ConvolveT ((double*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
-                break;
-            default:	// Unknown data type - possible in a future version of Igor.
-                throw NT_FNOT_AVAIL;
+                ConvolveT ((double*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
 		}
 	}else {
-		switch (p->inPutWaveType) {
+        switch (p->inPutWaveType) {
             case NT_I8:
-                ConvolveT ((char*)p->inPutDataPtr + startPos,(char*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr,p-> kWidth, p->kHeight);
+                ConvolveT ((char*)p->inPutDataPtr + startPos,(char*)p->outPutDataPtr + startPos, (char*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr,p-> kWidth, p->kHeight);
                 break;
             case (NT_I8 | NT_UNSIGNED):
-                ConvolveT ((unsigned char*)p->inPutDataPtr + startPos,(unsigned char*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((unsigned char*)p->inPutDataPtr + startPos,(unsigned char*)p->outPutDataPtr + startPos, (unsigned char*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_I16:
-                ConvolveT ((short*)p->inPutDataPtr + startPos,(short*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((short*)p->inPutDataPtr + startPos,(short*)p->outPutDataPtr + startPos, (short*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case (NT_I16 | NT_UNSIGNED):
-                ConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(unsigned short*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(unsigned short*)p->outPutDataPtr + startPos, (unsigned short*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_I32:
-                ConvolveT ((long*)p->inPutDataPtr + startPos,(long*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((long*)p->inPutDataPtr + startPos,(long*)p->outPutDataPtr + startPos, (long*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case (NT_I32| NT_UNSIGNED):
-                ConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(unsigned long*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(unsigned long*)p->outPutDataPtr + startPos, (unsigned long*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_FP32:
-                ConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_FP64:
-                ConvolveT ((double*)p->inPutDataPtr + startPos,(double*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
-                break;
-            default:	// Unknown data type - possible in a future version of Igor.
-                throw NT_FNOT_AVAIL;
+                ConvolveT ((double*)p->inPutDataPtr + startPos,(double*)p->outPutDataPtr + startPos, (double*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
 		}
 	}
-	return 0;
+	return nullptr;
 }
 
-/****************************************************************************************************************
+/* ConvolveFrames XOP entry function
  Convolves a 2D or 3D wave with a smaller 2D wave (the kernel), and sends the output to an output wave.
  Treats each plane in a 3D wave as a separate image
  Convolves any type of input wave and outputs to either the same type of wave, or to a 32 bit floating point wave
- Last modified 2025/06/13 by Jamie Boyd
+ Last modified 2025/06/23 by Jamie Boyd
  
  typedef struct ConvolveFramesParams{
  double overWrite; // 1 if it is o.k. to overwrite existing waves, 0 to exit with error
@@ -341,15 +331,14 @@ void* ConvolveFramesThread (void* threadarg){
  double outPutType; // 0 for same type as input wave, non-zero for floating point wave
  Handle outPutPath;	// A handle to a string containing path to output wave we want to make, or empty string to overwrite existing wave
  waveHndl inPutWaveH;//input wave. needs to be 3D wave
- double result;*/
-
+ double result; */
 extern "C" int ConvolveFrames(ConvolveFramesParamsPtr p){
 	int result = 0;	// The error returned from various Wavemetrics functions
 	waveHndl inPutWaveH, outPutWaveH, kernelH;		// handles to the input and output waves and the kernel
 	int inPutWaveType, kernelWaveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
     int inPutDimensions, kernelDimensions;	// number of dimensions in input and kernel waves
 	CountInt inPutDimensionSizes[MAX_DIMENSIONS+1], kernelDimensionSizes[MAX_DIMENSIONS+1];	// an array used to hold the width, height, layers, and chunk sizes
-	CountInt zSize; // we need this separate from array for size calculation
+	CountInt zSize; // we use this separate from array for size calculation
     BCInt inPutOffset, outPutOffset, kernelOffset;	//offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
 	DataFolderHandle inPutDFHandle, outPutDFHandle;	// Handle to the datafolder where we will put the output wave
 	DFPATH inPutPath, outPutPath; // strings to hold data folder paths of input and outPut waves
@@ -360,24 +349,24 @@ extern "C" int ConvolveFrames(ConvolveFramesParamsPtr p){
 	UInt8 isOverWriting; // non-zero if output is overwriting input wave
     float *kernelTablePtr; // kernel table (calculated weighting for truncation of convolution at edges)
 	UInt16 kSize;
-	UInt8 iThread, nThreads = gNumProcessors;
 	char *inPutDataStartPtr, *outPutDataStartPtr, *kernelDataStartPtr;
+    // for threads
+    UInt8 iThread, nThreads;
+    ConvolveFramesThreadParamsPtr paramArrayPtr;
+    pthread_t* threadsPtr;
+    char* bufferPtr = nullptr;  // pointer to temp buffer for threads
 	try{
 		// Get handles to input wave and kernel. Make sure both waves exist.
 		inPutWaveH = p->inPutWaveH;
 		kernelH = p ->kernelH;
-		if ((inPutWaveH == NIL)||(kernelH == NIL))
-			throw result = NON_EXISTENT_WAVE;
+		if ((inPutWaveH == nullptr)||(kernelH == NIL)) throw result = NON_EXISTENT_WAVE;
 		// Get wave data type
 		inPutWaveType = WaveType(inPutWaveH);
-		if (inPutWaveType==TEXT_WAVE_TYPE)
-			throw result = NOTEXTWAVES;
+		if (inPutWaveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
 		// Get number of used dimensions in waves.
-		if (result = MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes))
-			throw result;
+		if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
 		// Check that inputwave is 2D or 3D
-		if ((inPutDimensions == 1) || (inPutDimensions == 4))
-			throw result = INPUTNEEDS_2D3D_WAVE;
+		if ((inPutDimensions == 1) || (inPutDimensions == 4)) throw result = INPUTNEEDS_2D3D_WAVE;
         // if z size is 0, make it 1 to calculate size
         if (inPutDimensionSizes [2] == 0)
             zSize = 1;
@@ -385,12 +374,13 @@ extern "C" int ConvolveFrames(ConvolveFramesParamsPtr p){
             zSize=inPutDimensionSizes [2];
 		//	Check that kernel is 2D, and of odd dimensions
         if (MDGetWaveDimensions(kernelH, &kernelDimensions, kernelDimensionSizes)) throw result = WAVEERROR_NOS;
-		if ((((kernelDimensions != 2) || ((kernelDimensionSizes[0] % 2) == 0)) || ((kernelDimensionSizes[1] % 2) == 0)))
-			throw result = BADKERNEL;
+		if ((((kernelDimensions != 2) || ((kernelDimensionSizes[0] % 2) == 0)) || ((kernelDimensionSizes[1] % 2) == 0))) throw result = BADKERNEL;
 		// make sure kernel is 32 bit float - change if necessary
 		kernelWaveType = WaveType (kernelH);
-		if (kernelWaveType !=  (NT_FP32))
-			MDChangeWave (kernelH, NT_FP32, kernelDimensionSizes);
+        if (kernelWaveType !=  (NT_FP32)){
+            MDChangeWave (kernelH, NT_FP32, kernelDimensionSizes);
+            WaveHandleModified(kernelH);
+        }
 		// If outPutPath is empty string, we are overwriting existing wave
 		if (WMGetHandleSize (p->outPutPath) == 0){
 			if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
@@ -408,10 +398,11 @@ extern "C" int ConvolveFrames(ConvolveFramesParamsPtr p){
 			if (GetWavesDataFolder (inPutWaveH, &inPutDFHandle)) throw result = WAVEERROR_NOS;
             if (GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath)) throw result = WAVEERROR_NOS;;
 			if ((!(CmpStr (inPutPath,outPutPath))) && (!(CmpStr (inPutWaveName,outPutWaveName)))){	// Then we would overwrite wave
-				isOverWriting = 1;
 				if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
-				if (isFloat){ //redimesnion input wave to 32bit floating point
+                isOverWriting = 1;
+				if (isFloat){ //redimension input/output wave to 32bit floating point
 					if (MDChangeWave(inPutWaveH, NT_FP32, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
+                    WaveHandleModified(kernelH);
 				}
 				outPutWaveH = inPutWaveH;
 			}else{
@@ -439,9 +430,48 @@ extern "C" int ConvolveFrames(ConvolveFramesParamsPtr p){
         kernelDataStartPtr = (char*)(*kernelH) + kernelOffset;
         //make kernel table.
 		kSize = kernelDimensionSizes[0] * kernelDimensionSizes[1];
-		kernelTablePtr =ConvolveMakeKernelTable ((float*)kernelDataStartPtr, (int)kernelDimensionSizes[0], (int) kernelDimensionSizes[1]);
+		kernelTablePtr = ConvolveMakeKernelTable ((float*)kernelDataStartPtr, (int)kernelDimensionSizes[0], (int) kernelDimensionSizes[1]);
 		if (kernelTablePtr == NULL) throw result = NOMEM;
-    }catch (int (result)) { // catch before allocating any memory
+        // multiprocessor init
+        nThreads = gNumProcessors;
+        if (zSize < nThreads) nThreads = zSize;
+        paramArrayPtr = (ConvolveFramesThreadParamsPtr)WMNewPtr (nThreads * sizeof(ConvolveFramesThreadParams));
+        // make an array of pthread_t
+        if (paramArrayPtr == nullptr) throw result = NOMEM;
+        threadsPtr = (pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == nullptr) throw result = NOMEM;
+        if (isOverWriting){ // input = output wave, so need to  make a frame sized buffer
+            switch (inPutWaveType) {
+                case NT_I64 | NT_UNSIGNED:
+                case NT_I64:
+                case NT_FP64:
+                    bufferPtr = (char*)WMNewPtr (inPutDimensionSizes[ROWS] * inPutDimensionSizes[COLUMNS] * nThreads * 8);
+                    break;
+                case NT_I32 | NT_UNSIGNED:
+                case NT_I32:
+                case NT_FP32:
+                    bufferPtr = (char*)WMNewPtr (inPutDimensionSizes[ROWS] * inPutDimensionSizes[COLUMNS] * nThreads * 4);
+                    break;
+                case NT_I16 | NT_UNSIGNED:
+                case NT_I16:
+                    bufferPtr = (char*)WMNewPtr (inPutDimensionSizes[ROWS] * inPutDimensionSizes[COLUMNS]  * nThreads * 2);
+                    break;
+                case NT_I8 | NT_UNSIGNED:
+                case NT_I8:
+                    bufferPtr = (char*)WMNewPtr (inPutDimensionSizes[ROWS] * inPutDimensionSizes[COLUMNS]  * nThreads * 1);
+                    break;
+                default:
+                    throw result = NUMTYPE;
+                    break;
+            }
+            if (bufferPtr == NULL) throw result = NOMEM;
+        }
+    }catch (int (result)) { // catch before starting threads
+        if (bufferPtr != nullptr)  WMDisposePtr ((Ptr)bufferPtr);
+        if (threadsPtr != nullptr) WMDisposePtr ((Ptr)threadsPtr);
+        if (paramArrayPtr != nullptr) WMDisposePtr ((Ptr)paramArrayPtr);
+        if (kernelTablePtr !=nullptr) WMDisposePtr ((Ptr)kernelTablePtr);
+        WMDisposeHandle (p->outPutPath);    // free input string for output path
         p -> result = (double)(result - FIRST_XOP_ERR);
         #ifdef NO_IGOR_ERR
             return (0);
@@ -449,14 +479,12 @@ extern "C" int ConvolveFrames(ConvolveFramesParamsPtr p){
             return (result);
         #endif
     }
-    // multiprocessor initialization
-    // make an array of parameter structures
-    if (zSize < nThreads) nThreads = zSize;
-    ConvolveFramesThreadParamsPtr paramArrayPtr= (ConvolveFramesThreadParamsPtr)WMNewPtr (nThreads * sizeof(ConvolveFramesThreadParams));
+    // fill array of parameter structures
     for (iThread = 0; iThread < nThreads; iThread++){
         paramArrayPtr[iThread].inPutWaveType = inPutWaveType;
         paramArrayPtr[iThread].inPutDataPtr = inPutDataStartPtr;
         paramArrayPtr[iThread].outPutDataPtr = outPutDataStartPtr;
+        paramArrayPtr[iThread].frameBufferPtr = bufferPtr;
         paramArrayPtr[iThread].xSize = inPutDimensionSizes [0];
         paramArrayPtr[iThread].ySize = inPutDimensionSizes [1];
         paramArrayPtr[iThread].zSize = zSize;
@@ -468,8 +496,6 @@ extern "C" int ConvolveFrames(ConvolveFramesParamsPtr p){
         paramArrayPtr[iThread].kHeight= kernelDimensionSizes [1];
         paramArrayPtr[iThread].isFloat = isFloat; // 0 for same type as input wave, non-zero for floating point wave
     }
-    // make an array of pthread_t
-    pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, ConvolveFramesThread, (void *) &paramArrayPtr[iThread]);
@@ -478,25 +504,31 @@ extern "C" int ConvolveFrames(ConvolveFramesParamsPtr p){
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_join (threadsPtr[iThread], NULL);
     }
+    // free frameBuffer, if made
+    if (isOverWriting) WMDisposePtr ((Ptr)bufferPtr);
     // free memory for pThreads Array
     WMDisposePtr ((Ptr)threadsPtr);
     // Free paramaterArray memory
     WMDisposePtr ((Ptr)paramArrayPtr);
     //free kernel table memory
     WMDisposePtr ((Ptr)kernelTablePtr);
-    WaveHandleModified(outPutWaveH);			// Inform Igor that we have changed the output wave.
+    WMDisposeHandle (p->outPutPath);
+    // Inform Igor that we have changed the output wave.
+    WaveHandleModified(outPutWaveH);
     p -> result = (0);
     return (0);
 }
 
-/*****************************************************************************************************************
- Makes and returns a table of weights for a 1D kernel, first Checking that the kernel is, indeed, symetrical
+/* -------------------------------- convolution with a symetrical 2D kernel ------------------------------------------
+ A symetrical 2D kernel applied as the same 1D kernel done first in X and then in Y. Each frame is done as 2D plane
+ ------------------------------------------------------------------------------------------------------------------- */
+ 
+/* Makes and returns a table of weights for a 1D kernel, first Checking that the kernel is, indeed, symetrical
  returns a null pointer if kernel is not symetrical
  Last Modified 2014/01/21 by Jamie Boyd */
 float * SymConvolveMakeKernelTable (float * kernel, UInt16 kWidth){
-    
     // kernel has to be odd
-    if((kWidth % 2) ==0) return NIL;
+    if((kWidth % 2) == 0) return NIL;
     // check symetry
     // Get sum of entire kernel for making kernel table while we are at it
     UInt16 kRadW = (kWidth-1)/2; // radius of kernel, not counting central point
@@ -522,16 +554,11 @@ float * SymConvolveMakeKernelTable (float * kernel, UInt16 kWidth){
 }
 
 
-/****************************************************************************************************************
- template function for convolving one wave with a 1D symetrical kernel (e.g., Guassian) and putting results in an output wave.
+/* template function for convolving one wave with a 1D symetrical kernel (e.g., Guassian) and putting results in an output wave.
  Input wave can be 2 or 3D, but each plane is done as a separate 2D image.
  Last Modified 2014/01/21 by Jamie Boyd */
-template <typename TI, typename TO> int SymConvolveT (TI* srcWave, TO* destWave, CountInt nWaveX, CountInt nWaveY, CountInt nWaveZ, float* kernel, float * kernelTable, UInt16 kWidth){
-    
-    // make 1D buffer big enough to hold a single frame
+template <typename TI, typename TO> void SymConvolveT (TI* srcWave, TO* destWave, TO* buffer, CountInt nWaveX, CountInt nWaveY, CountInt nWaveZ, float* kernel, float * kernelTable, UInt16 kWidth){
     CountInt frameSize = nWaveX * nWaveY;
-    double *buffer = (double *) WMNewPtr (frameSize * sizeof (double));
-    if (buffer == NIL) return 1;
     //variables for iterating through waves
     UInt16 kRad = (kWidth-1)/2; // radius of kernel, not including the central point
     //CountInt nWave = frameSize * nWaveZ;
@@ -629,89 +656,81 @@ template <typename TI, typename TO> int SymConvolveT (TI* srcWave, TO* destWave,
             convoStart += kRad; // get to next row for x filtering
         }
     }
-    WMDisposePtr ((Ptr)buffer);
 }
 
-/***********************************************************************************************************************
- Each thread to symetrically convolve a range of frames starts with this function
- Last Modified 2025/06/13 by Jamie Boyd */
+/* Each thread to symetrically convolve a range of frames starts with this function
+ Last Modified 2025/06/23 by Jamie Boyd */
 void* SymConvolveFramesThread (void* threadarg){
-    
     struct ConvolveFramesThreadParams* p;
     p = (struct ConvolveFramesThreadParams*) threadarg;
     CountInt tFrames = p->zSize/p->tN; //frames per thread = number of frames / number of threads, truncated to an integer
     CountInt startPos = p->ti * tFrames; // whaich frame to start this thread on depends on thread number * frames per thread. ti is 0 based
     if (p->ti == p->tN - 1) tFrames +=  (p->zSize % p->tN); // the last thread gets any left-over frames
     startPos *= (p->xSize * p->ySize); //change start position from frames to data points by multiplying by frame size
+    CountInt bufferOffset =p->ti * p->xSize * p->ySize;
     if (p->isFloat){
         switch (p->inPutWaveType) {
             case NT_I8:
-                SymConvolveT ((char*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((char*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case (NT_I8 | NT_UNSIGNED):
-                SymConvolveT ((unsigned char*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((unsigned char*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case NT_I16:
-                SymConvolveT ((short*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((short*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case (NT_I16 | NT_UNSIGNED):
-                SymConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case NT_I32:
-                SymConvolveT ((long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case (NT_I32| NT_UNSIGNED):
-                SymConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case NT_FP32:
-                SymConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case NT_FP64:
-                SymConvolveT ((double*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
-                break;
-            default:	// Unknown data type - possible in a future version of Igor.
-                throw NT_FNOT_AVAIL;
+                SymConvolveT ((double*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
         }
     }else {
         switch (p->inPutWaveType) {
             case NT_I8:
-                SymConvolveT ((char*)p->inPutDataPtr + startPos,(char*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((char*)p->inPutDataPtr + startPos,(char*)p->outPutDataPtr + startPos, (char*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case (NT_I8 | NT_UNSIGNED):
-                SymConvolveT ((unsigned char*)p->inPutDataPtr + startPos,(unsigned char*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((unsigned char*)p->inPutDataPtr + startPos,(unsigned char*)p->outPutDataPtr + startPos, (unsigned char*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case NT_I16:
-                SymConvolveT ((short*)p->inPutDataPtr + startPos,(short*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((short*)p->inPutDataPtr + startPos,(short*)p->outPutDataPtr + startPos,  (short*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case (NT_I16 | NT_UNSIGNED):
-                SymConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(unsigned short*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(unsigned short*)p->outPutDataPtr + startPos, (unsigned short*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case NT_I32:
-                SymConvolveT ((long*)p->inPutDataPtr + startPos,(long*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((long*)p->inPutDataPtr + startPos,(long*)p->outPutDataPtr + startPos, (long*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case (NT_I32| NT_UNSIGNED):
-                SymConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(unsigned long*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(unsigned long*)p->outPutDataPtr + startPos, (unsigned long*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case NT_FP32:
-                SymConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case NT_FP64:
-                SymConvolveT ((double*)p->inPutDataPtr + startPos,(double*)p->outPutDataPtr + startPos, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
-                break;
-            default:	// Unknown data type - possible in a future version of Igor.
-                throw NT_FNOT_AVAIL;
+                SymConvolveT ((double*)p->inPutDataPtr + startPos,(double*)p->outPutDataPtr + startPos, (double*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
         }
     }
-    return 0;
+    return nullptr;
 }
 
-/****************************************************************************************************************
- Convolves a 2D or 3D wave with a 1D symetrical kernel, and sends the output to an output wave.
+/* SymConvolveFrames XOP entry function
+ Convolves a 2D or 3D wave with a 1D symetrical kernel in X and Y, and sends the output to an output wave.
  Treats each plane in a 3D wave as a separate image
  Convolves any type of input wave and outputs to either the same type of wave,  or to a 32 bit floating point wave
- Last modified 2025/06/13 by Jamie Boyd
+ Last modified 2025/06/23 by Jamie Boyd
  
  typedef struct ConvolveFramesParams{
  double overWrite; // 1 if it is o.k. to overwrite existing waves, 0 to exit with error if overwriting will occur
@@ -719,16 +738,14 @@ void* SymConvolveFramesThread (void* threadarg){
  double outPutType; // 0 for same type as input wave, non-zero for floating point wave
  Handle outPutPath;	// A handle to a string containing path to output wave we want to make, or empty string to overwrite existing wave
  waveHndl inPutWaveH; //input wave. needs to be 2D or 3D wave
- double result;
- } ConvolveFramesParams, *ConvolveFramesParamsPtr
- */
-
+ double result; */
 extern "C" int SymConvolveFrames(ConvolveFramesParamsPtr p) {
     int result = 0;	// The error returned from various Wavemetrics functions
     waveHndl inPutWaveH, outPutWaveH, kernelH;		// handles to the input wave, output wave (we create) and kernel wave
     int inPutWaveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
     int inPutDimensions;	// number of dimensions in input wave
     CountInt inPutDimensionSizes[MAX_DIMENSIONS+1];	// an array used to hold the width, height, layers, and chunk sizes
+    CountInt frameSize;
     CountInt zSize;
     int kernelType;
     int kernelDimensions;
@@ -743,28 +760,29 @@ extern "C" int SymConvolveFrames(ConvolveFramesParamsPtr p) {
     UInt8 isFloat = (UInt8)(p-> outPutType); // 0 to use input type, non-zero to use 32 bit floating point
     UInt8 isOverWriting; // non-zero if output is overwriting input wave
     float *kernelTable;
-    UInt8 iThread, nThreads = gNumProcessors;
-    char *inPutDataStartPtr, *outPutDataStartPtr, *kernelDataStartPtr;
+    UInt8 iThread, nThreads;
+    ConvolveFramesThreadParamsPtr paramArrayPtr;
+    pthread_t* threadsPtr;
+    char *inPutDataStartPtr, *outPutDataStartPtr, *kernelDataStartPtr, *bufferPtr;
     try{
         // Get handles to input wave and kernel.
         inPutWaveH = p->inPutWaveH;
-        if (inPutWaveH == NIL) throw result = NON_EXISTENT_WAVE;
+        if (inPutWaveH == nullptr) throw result = NON_EXISTENT_WAVE;
         // Get wave data type
         inPutWaveType = WaveType(inPutWaveH);
         if (inPutWaveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
         // Get number of used dimensions in waves.
         if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
         // Check that inputwave is 2D or 3D
-        if ((inPutDimensions == 1) || (inPutDimensions == 4))
-            throw result = INPUTNEEDS_2D3D_WAVE;
+        if ((inPutDimensions == 1) || (inPutDimensions == 4)) throw result = INPUTNEEDS_2D3D_WAVE;
         // if z size is 0, make it 1 to calculate size
-        if (inPutDimensionSizes [2] == 0)
+        if (inPutDimensionSizes [LAYERS] == 0)
             zSize = 1;
         else
-            zSize=inPutDimensionSizes [2];        //	make sure kernel exists and is 1D and of odd dimensions
+            zSize=inPutDimensionSizes [LAYERS];        //	make sure kernel exists and is 1D and of odd dimensions
+        frameSize = inPutDimensionSizes [ROWS] * inPutDimensionSizes [COLUMNS];
         kernelH = p->kernelH;
-        if (kernelH == NIL)
-            throw result = NON_EXISTENT_WAVE;
+        if (kernelH == nullptr) throw result = NON_EXISTENT_WAVE;
         // Get number of used dimensions in kernel.
         if (MDGetWaveDimensions(kernelH, &kernelDimensions, kernelDimensionSizes)) throw result = WAVEERROR_NOS;
         if (kernelDimensions > 1) throw result = BADSYMKERNEL;
@@ -810,7 +828,6 @@ extern "C" int SymConvolveFrames(ConvolveFramesParamsPtr p) {
                 }
             }
         }
-
         //Get data offsets for the 3 waves (2 waves, if overwriting)
         if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) throw result = WAVEERROR_NOS;
         if (isOverWriting){
@@ -825,7 +842,45 @@ extern "C" int SymConvolveFrames(ConvolveFramesParamsPtr p) {
         // make kernel table
         kernelTable = SymConvolveMakeKernelTable ((float*)kernelDataStartPtr, kernelDimensionSizes [0]);
         if (kernelTable ==NULL) throw result = BADSYMKERNEL;
-    }catch (int (result)) {
+        // multiprocessor initialization
+        nThreads = gNumProcessors;
+        if (zSize < nThreads) nThreads = zSize;
+        // make an array of parameter structures
+        paramArrayPtr= (ConvolveFramesThreadParamsPtr)WMNewPtr (nThreads * sizeof(ConvolveFramesThreadParams));
+        if (paramArrayPtr == nullptr) throw result = MEMFAIL;
+        // make an array of pthread_t
+        threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == nullptr) throw result = MEMFAIL;
+        // make buffer
+        switch (inPutWaveType) {
+            case NT_I64 | NT_UNSIGNED:
+            case NT_I64:
+            case NT_FP64:
+                bufferPtr = (char*)WMNewPtr ( frameSize * nThreads * 8);
+                break;
+            case NT_I32 | NT_UNSIGNED:
+            case NT_I32:
+            case NT_FP32:
+                bufferPtr = (char*)WMNewPtr (frameSize * nThreads * 4);
+                break;
+            case NT_I16 | NT_UNSIGNED:
+            case NT_I16:
+                bufferPtr = (char*)WMNewPtr (frameSize * nThreads * 2);
+                break;
+            case NT_I8 | NT_UNSIGNED:
+            case NT_I8:
+                bufferPtr = (char*)WMNewPtr (frameSize * nThreads * 1);
+                break;
+            default:
+                throw result = NUMTYPE;
+                break;
+        }
+        if (bufferPtr == nullptr) throw result = NOMEM;
+    }catch (int (result)) { // catch errors before starting threads
+        if (bufferPtr != nullptr)WMDisposePtr ((Ptr)bufferPtr);
+        if (threadsPtr != nullptr) WMDisposePtr ((Ptr)threadsPtr);
+        if (paramArrayPtr != nullptr) WMDisposePtr ((Ptr)paramArrayPtr);
+        WMDisposeHandle (p->outPutPath);    // free input string for output path
         p -> result = (double)(result - FIRST_XOP_ERR);
         #ifdef NO_IGOR_ERR
             return (0);
@@ -833,14 +888,12 @@ extern "C" int SymConvolveFrames(ConvolveFramesParamsPtr p) {
             return (result);
         #endif
     }
-    // multiprocessor initialization
-    // make an array of parameter structures
-    if (zSize < nThreads) nThreads = zSize;
-    ConvolveFramesThreadParamsPtr paramArrayPtr= (ConvolveFramesThreadParamsPtr)WMNewPtr (nThreads * sizeof(ConvolveFramesThreadParams));
+    // fill paramater array
     for (iThread = 0; iThread < nThreads; iThread++){
         paramArrayPtr[iThread].inPutWaveType = inPutWaveType;
         paramArrayPtr[iThread].inPutDataPtr = inPutDataStartPtr;
         paramArrayPtr[iThread].outPutDataPtr = outPutDataStartPtr;
+        paramArrayPtr[iThread].frameBufferPtr = bufferPtr;
         paramArrayPtr[iThread].xSize = inPutDimensionSizes [0];
         paramArrayPtr[iThread].ySize = inPutDimensionSizes [1];
         paramArrayPtr[iThread].zSize =zSize;
@@ -851,8 +904,6 @@ extern "C" int SymConvolveFrames(ConvolveFramesParamsPtr p) {
         paramArrayPtr[iThread].kernelTablePtr =kernelTable; // sum of kernel at start of column or line
         paramArrayPtr[iThread].isFloat = isFloat; // 0 for same type as input wave, non-zero for floating point wave
     }
-    // make an array of pthread_t
-    pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, SymConvolveFramesThread, (void *) &paramArrayPtr[iThread]);
@@ -861,23 +912,26 @@ extern "C" int SymConvolveFrames(ConvolveFramesParamsPtr p) {
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_join (threadsPtr[iThread], NULL);
     }
-    // free memory for pThreads Array
-    WMDisposePtr ((Ptr)threadsPtr);
-    // Free paramaterArray memory
-    WMDisposePtr ((Ptr)paramArrayPtr);
-    //free kernel copy memory
-    WMDisposePtr ((Ptr)kernelTable);
-    WaveHandleModified(outPutWaveH);			// Inform Igor that we have changed the output wave.
+    WMDisposePtr ((Ptr)bufferPtr);      // free memory for frame buffer
+    WMDisposePtr ((Ptr)threadsPtr);     // free memory for pThreads Array
+    WMDisposePtr ((Ptr)paramArrayPtr);  // Free paramaterArray memory
+    WMDisposePtr ((Ptr)kernelTable);    //free kernel table memory
+    WMDisposeHandle (p->outPutPath);    // free input string for output path
+    WaveHandleModified(outPutWaveH);    // Inform Igor that we have changed the output wave.
     p -> result = (0);
     return (0);
 }
 
-/****************************************************************************************************************
- //template for a stand-alone median function for any data type
- // n = number of data points, dataStrtPtr is pointer to start of data
+
+/* -------------------------------------- MedianFrames-------------------------------------------------------
+ Applies a median filter to a 2D or 3D wave, treating each plane as a separate 2D image
+ Does multiple frames in a single 3D wave
+ -------------------------------------------------------------------------------------------------------------*/
+
+/* template for a stand-alone median function for any data type
+ n = number of data points, dataStrtPtr is pointer to start of data
  Last Modified 2013/07/16 by Jamie Boyd */
-template <typename T> T medianT (UInt32 n, T* dataStrtPtr)
-{
+template <typename T> T medianT (UInt32 n, T* dataStrtPtr) {
     UInt32 medianOffset = n/2; // point offset to location of median value when function returns
     UInt32 i,right = n -1,j,left =0, mid; // point offsets used for partitioning
     T a; //
@@ -917,35 +971,13 @@ template <typename T> T medianT (UInt32 n, T* dataStrtPtr)
     }
 }
 
-/*******************************************************************************************************************************************
- Structure to pass data to each MedianFramesThread
- Last Modified 2013/07/16 by Jamie Boyd */
-typedef struct MedianFramesThreadParams{
-    int inPutWaveType;
-    char* inPutDataStartPtr;
-    char* outPutDataStartPtr;
-    CountInt xSize;
-    CountInt ySize;
-    CountInt zSize;
-    UInt8 ti; // number of this thread, starting from 0
-    UInt8 tN; // total number of threads
-    UInt16 kWidth;
-}MedianFramesThreadParams, *MedianFramesThreadParamsPtr;
 
-/*****************************************************************************************************************
- template for applying a median filter and putting the results in an output wave.
- Input wave can be 2 or 3D, but each plane is done as a separate 2D image.
- Last Modified 2025/06/13 by Jamie Boyd
- 
- double overWrite; // 1 if it is o.k. to overwrite existing waves, 0 to exit with error if overwriting would occur
- double kWidth; //width of the area over which to calculate the median. Must be an odd number
- Handle outPutPath;	// A handle to a string containing path to output wave we want to make, or empty string to overwrite existing wave
- waveHndl inPutWaveH;//input wave. needs to be 2D or 3D wave*/
-
-template <typename TI> int MedianFramesT (TI* srcWave, TI* destWave, CountInt xSize, CountInt ySize, CountInt zSize, UInt16 kWidth){
+ /* template for applying a median filter and putting the results in an output wave.
+  Input wave can be 2 or 3D, but each plane is done as a separate 2D image.
+ Last Modified 2025/06/24 by Jamie Boyd */
+template <typename TI> void MedianFramesT (TI* srcWave, TI* destWave, TI* bufferStartPtr, CountInt xSize, CountInt ySize, CountInt zSize, UInt16 kWidth){
     CountInt fSize = (xSize * ySize);  //frame size
-    CountInt bufferSize = (fSize *  sizeof (TI)); // size of a buffer big enough to hold one frame
-    Ptr bufferStartPtr ; // pointer for a frames' worth of buffer, if overwriting the source wave
+    CountInt bufferSize =(fSize *  sizeof (TI));
     UInt32 kSize = (kWidth * kWidth); // number of pixels in the kernel
     TI* kernelCopyStart; // pointer to start of the buffer to store copied data to be medianed in a destructive fashion
     UInt32  kBufferSize = (kSize *  sizeof (TI));
@@ -958,20 +990,13 @@ template <typename TI> int MedianFramesT (TI* srcWave, TI* destWave, CountInt xS
     CountInt kX, kY, kXend, kYend; // variables for iterating through pieces of kernel
     CountInt wToNextRow; //amount to add to wToFirstRow to get to next row in input wave when iterating through a kernel
     CountInt wX, wY, wZ, wXend, wYend; // to keep track of progress through X and Y in input wave
-    
-    //if overwriting source, make a buffer to hold a single frame
+    // overwriting source if dest == src
     if ((TI*)destWave == (TI*)srcWave){
         isOverWriting = 1;
-        //Make a buffer big enough to hold a single frame
-        if (isOverWriting)
-            bufferStartPtr = (char*)WMNewPtr (bufferSize);
-        if (bufferStartPtr == NULL) return NOMEM;
     }
-    // Make a buffer big enough to hold a "kernel's worth" of pixels
+    // Make a buffer big enough to hold a "kernel's worth" of pixels - allocate in thread because it is too small to fail
     kernelCopyStart = (TI*) WMNewPtr (kBufferSize);
-    if (kernelCopyStart == NULL) return NOMEM;
     // Loop through all frames
-    if (zSize == 0) zSize =1; // zSize = 0 means a 2D wave
     for (wZ=0, outPutPtr = destWave, inPutPtr =srcWave; wZ < zSize; wZ++){
         if (isOverWriting){  // copy next frame to buffer and position input pointer at start of buffer
             memcpy ((void*) bufferStartPtr, (void*) outPutPtr, bufferSize);
@@ -1086,73 +1111,85 @@ template <typename TI> int MedianFramesT (TI* srcWave, TI* destWave, CountInt xS
             } // End of Loop for BOTTOM RIGHT
         } // End of Loop for BOTTOM
     } // End of Loop for Each Frame
-    if (isOverWriting)
-        WMDisposePtr (bufferStartPtr);
-    return 0;
+    if (kernelCopyStart != nullptr) WMDisposePtr ((Ptr)kernelCopyStart);
 }
 
-/*********************************************************************************************************************************************
- Each thread to median filter a range of frames starts with this function
+/* Structure to pass data to each MedianFramesThread
+ Last Modified 2013/07/16 by Jamie Boyd */
+typedef struct MedianFramesThreadParams{
+    int inPutWaveType;
+    char* inPutDataStartPtr;
+    char* outPutDataStartPtr;
+    char* bufferPtr;
+    CountInt xSize;
+    CountInt ySize;
+    CountInt zSize;
+    UInt8 ti; // number of this thread, starting from 0
+    UInt8 tN; // total number of threads
+    UInt16 kWidth;
+}MedianFramesThreadParams, *MedianFramesThreadParamsPtr;
+
+
+/* Each thread to median filter a range of frames starts with this function
  Last Modified 2013/07/16 by Jamie Boyd */
 void* MedianFramesThread (void* threadarg){
-    
     struct MedianFramesThreadParams* p;
     p = (struct MedianFramesThreadParams*) threadarg;
     CountInt tFrames = p->zSize/p->tN; //frames per thread = number of frames / number of threads, truncated to an integer
     CountInt startPos = p->ti * tFrames; // which frame to start this thread on depends on thread number * frames per thread. ti is 0 based
+    CountInt frameSize = p->xSize * p->ySize;
     if (p->ti == p->tN - 1) tFrames +=  (p->zSize % p->tN); // the last thread gets any left-over frames
-    startPos *= (p->xSize * p->ySize); //change start position from frames to data points by multiplying by frame size
+    startPos *= frameSize; //change start position from frames to data points by multiplying by frame size
     // call the right template function for the wave types
+    CountInt bufferOffset = 0;
+    if (p->inPutDataStartPtr == p->outPutDataStartPtr )
+        bufferOffset= frameSize * p->ti;
     switch (p->inPutWaveType) {
         case NT_I8:
-            MedianFramesT ((char*)p->inPutDataStartPtr + startPos, (char*)p->outPutDataStartPtr + startPos, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((char*)p->inPutDataStartPtr + startPos, (char*)p->outPutDataStartPtr + startPos, (char*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
             break;
         case (NT_I8 | NT_UNSIGNED):
-            MedianFramesT ((unsigned char*)p->inPutDataStartPtr + startPos,(unsigned char*)p->outPutDataStartPtr + startPos, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((unsigned char*)p->inPutDataStartPtr + startPos,(unsigned char*)p->outPutDataStartPtr + startPos, (unsigned char*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
             break;
         case NT_I16:
-            MedianFramesT ((short*)p->inPutDataStartPtr + startPos,(short*)p->outPutDataStartPtr + startPos, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((short*)p->inPutDataStartPtr + startPos,(short*)p->outPutDataStartPtr + startPos, (short*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
             break;
         case (NT_I16 | NT_UNSIGNED):
-            MedianFramesT ((unsigned short*)p->inPutDataStartPtr + startPos,(unsigned short*)p->outPutDataStartPtr + startPos, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((unsigned short*)p->inPutDataStartPtr + startPos,(unsigned short*)p->outPutDataStartPtr + startPos, (unsigned short*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
             break;
         case NT_I32:
-            MedianFramesT ((long*)p->inPutDataStartPtr + startPos,(long*)p->outPutDataStartPtr + startPos, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((long*)p->inPutDataStartPtr + startPos,(long*)p->outPutDataStartPtr + startPos, (long*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
             break;
         case (NT_I32| NT_UNSIGNED):
-            MedianFramesT ((unsigned long*)p->inPutDataStartPtr + startPos,(unsigned long*)p->outPutDataStartPtr + startPos, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((unsigned long*)p->inPutDataStartPtr + startPos,(unsigned long*)p->outPutDataStartPtr + startPos, (unsigned long*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
             break;
         case NT_FP32:
-            MedianFramesT ((float*)p->inPutDataStartPtr + startPos,(float*)p->outPutDataStartPtr + startPos, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((float*)p->inPutDataStartPtr + startPos,(float*)p->outPutDataStartPtr + startPos, (float*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
             break;
         case NT_FP64:
-            MedianFramesT ((double*)p->inPutDataStartPtr + startPos,(double*)p->outPutDataStartPtr + startPos, p->xSize, p->ySize, tFrames, p->kWidth);
-            break;
-        default:	// Unknown data type - possible in a future version of Igor.
-            throw NT_FNOT_AVAIL;
+            MedianFramesT ((double*)p->inPutDataStartPtr + startPos,(double*)p->outPutDataStartPtr + startPos, (double*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
             break;
     }
-    return 0;
+    return nullptr;
 }
 
-/****************************************************************************************************************
- Applies a median filter to a 3D wave, treating each plane as a separate 2D image
- Does multiple frames in a single 3D wave
- Last modified 2013/07/16 by Jamie Boyd
+/* MedianFrames XOP entry function
+ Applies a median filter to a 2D or 3D wave, treating each plane in a 3D wave as a separate 2D image
  typedef struct MedianFramesParams{
  double overWrite; // 1 if it is o.k. to overwrite existing waves, 0 to exit with error
  double kWidth; //width of the area over which to calculate the median. Must be an odd number
  Handle outPutPath;	// A handle to a string containing path to output wave we want to make, or empty string to overwrite existing wave
  waveHndl inPutWaveH;//input wave. needs to be 2D or 3D wave
  double result;
- } MedianFramesParams, *MedianFramesParamsPtr;*/
-
+ } MedianFramesParams, *MedianFramesParamsPtr;
+ Last modified 2013/07/16 by Jamie Boyd */
 extern "C" int MedianFrames (MedianFramesParamsPtr p){
     int result = 0;	// The error returned from various Wavemetrics functions
     waveHndl inPutWaveH, outPutWaveH;		// handles to the input and output waves
 	int inPutWaveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
     int inPutDimensions;	// number of dimensions in input wave
     CountInt inPutDimensionSizes[MAX_DIMENSIONS+1];	// an array used to hold the width, height, layers, and chunk sizes
+    CountInt zSize, frameSize;
     BCInt inPutOffset, outPutOffset;	//offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
     DataFolderHandle inPutDFHandle, outPutDFHandle;	// Handle to the datafolder where we will put the output wave
     DFPATH inPutPath, outPutPath;	// string to hold data folder path of input wave
@@ -1160,7 +1197,11 @@ extern "C" int MedianFrames (MedianFramesParamsPtr p){
     UInt8 overWrite = (UInt8)(p->overWrite);	// 0 to not overwrite output wave if it already exists, 1 to overwrite old waves
     UInt16 kWidth = (UInt16)(p-> kWidth); // width of the area over which the median will be calculated
     UInt8 isOverWriting; // non-zero if output is overwriting input wave
-    char *inPutDataStartPtr, *outPutDataStartPtr;
+    char *inPutDataStartPtr, *outPutDataStartPtr, *bufferPtr = nullptr;
+    // for threads
+    UInt8 iThread, nThreads;
+    MedianFramesThreadParamsPtr paramArrayPtr = nullptr;
+    pthread_t* threadsPtr = nullptr;
     try{
         // Check that kWidth is odd
         if ((kWidth % 2) == 0) throw result = BADKERNEL;
@@ -1174,6 +1215,12 @@ extern "C" int MedianFrames (MedianFramesParamsPtr p){
         if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
         // Check that inputwave is 2D or 3D
         if ((inPutDimensions == 1) || (inPutDimensions == 4)) throw result = INPUTNEEDS_2D3D_WAVE;
+        // if z size is 0, make it 1 to calculate size
+        if (inPutDimensionSizes [LAYERS] == 0)
+            zSize = 1;
+        else
+            zSize=inPutDimensionSizes [LAYERS];
+        frameSize = inPutDimensionSizes [ROWS] * inPutDimensionSizes [COLUMNS];
         // If outPutPath is empty string, we are overwriting existing wave
         if (WMGetHandleSize (p->outPutPath) == 0){
             if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
@@ -1187,9 +1234,9 @@ extern "C" int MedianFrames (MedianFramesParamsPtr p){
             WaveName (inPutWaveH, inPutWaveName);
             if (GetWavesDataFolder (inPutWaveH, &inPutDFHandle)) return WAVEERROR_NOS;
             if (GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath)) return WAVEERROR_NOS;
-            if ((!(CmpStr (inPutPath,outPutPath))) && (!(CmpStr (inPutWaveName,outPutWaveName)))){	// Then we would overwrite wave
-                isOverWriting = 1;
+            if ((!(CmpStr (inPutPath,outPutPath))) && (!(CmpStr (inPutWaveName,outPutWaveName)))){	// Then we would overwrite input wave
                 if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
+                isOverWriting = 1;
                 outPutWaveH = inPutWaveH;
             }else{
                 isOverWriting = 0;
@@ -1199,7 +1246,7 @@ extern "C" int MedianFrames (MedianFramesParamsPtr p){
                 if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite)) throw result = WAVEERROR_NOS;
             }
         }
-		//Get data offsets for the 3 waves (2 waves, if overwriting)
+		//Get data offsets for the 2 waves (1 wave, if overwriting)
         if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) return WAVEERROR_NOS;
         if (isOverWriting){
             outPutOffset = inPutOffset;
@@ -1207,8 +1254,48 @@ extern "C" int MedianFrames (MedianFramesParamsPtr p){
             if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset)) throw result = WAVEERROR_NOS;
         }
         inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
-        outPutDataStartPtr =  (char*)(*outPutWaveH) + outPutOffset;
+        outPutDataStartPtr =  (char*)(*outPutWaveH) + outPutOffset; // true even if overwriting
+        // multiprocessor init
+        nThreads = gNumProcessors;
+        if (zSize < nThreads) nThreads = (UInt8) zSize;
+        // make array of parameter structures */
+        paramArrayPtr = (MedianFramesThreadParamsPtr)WMNewPtr(nThreads * sizeof(MedianFramesThreadParams));
+        if (paramArrayPtr == nullptr) throw result = NOMEM;
+        // make an array of pthread_t
+        threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == nullptr) throw result = NOMEM;
+        // make a buffer of frames for threads if overwriting src
+        if (isOverWriting){
+            switch (inPutWaveType) {
+                case NT_I64 | NT_UNSIGNED:
+                case NT_I64:
+                case NT_FP64:
+                    bufferPtr = (char*)WMNewPtr (frameSize * nThreads * 8);
+                    break;
+                case NT_I32 | NT_UNSIGNED:
+                case NT_I32:
+                case NT_FP32:
+                    bufferPtr = (char*)WMNewPtr (frameSize * nThreads * 4);
+                    break;
+                case NT_I16 | NT_UNSIGNED:
+                case NT_I16:
+                    bufferPtr = (char*)WMNewPtr (frameSize * nThreads * 2);
+                    break;
+                case NT_I8 | NT_UNSIGNED:
+                case NT_I8:
+                    bufferPtr = (char*)WMNewPtr (frameSize * nThreads * 1);
+                    break;
+                default:
+                    throw result = NUMTYPE;
+                    break;
+            }
+            if (bufferPtr == nullptr) throw result = NOMEM;
+        }
     }catch (int result){
+        if (bufferPtr != nullptr) WMDisposePtr ((Ptr)bufferPtr);
+        if (threadsPtr != nullptr) WMDisposePtr ((Ptr)threadsPtr);
+        if (paramArrayPtr != nullptr) WMDisposePtr ((Ptr)paramArrayPtr);
+        WMDisposeHandle (p->outPutPath);    // free input string for output path
         p -> result = (double)(result - FIRST_XOP_ERR);
         #ifdef NO_IGOR_ERR
             return (0);
@@ -1216,24 +1303,19 @@ extern "C" int MedianFrames (MedianFramesParamsPtr p){
             return (result);
         #endif
     }
-    /* multiprocessor init
-     fill array of parameter structures */
-    int iThread, nThreads = gNumProcessors;
-    if (inPutDimensionSizes [2] < nThreads) nThreads = (int)inPutDimensionSizes [2];
-    MedianFramesThreadParamsPtr paramArrayPtr= (MedianFramesThreadParamsPtr)WMNewPtr(nThreads * sizeof(MedianFramesThreadParams));
+    // fill params array
     for (iThread = 0; iThread < nThreads; iThread++){
         paramArrayPtr[iThread].inPutWaveType = inPutWaveType;
         paramArrayPtr[iThread].inPutDataStartPtr = inPutDataStartPtr;
         paramArrayPtr[iThread].outPutDataStartPtr = outPutDataStartPtr;
+        paramArrayPtr[iThread].bufferPtr = bufferPtr;
         paramArrayPtr[iThread].xSize = inPutDimensionSizes [0];
         paramArrayPtr[iThread].ySize = inPutDimensionSizes [1];
-        paramArrayPtr[iThread].zSize =inPutDimensionSizes [2];
+        paramArrayPtr[iThread].zSize = inPutDimensionSizes [2];
         paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
         paramArrayPtr[iThread].tN =nThreads; // total number of threads
         paramArrayPtr[iThread].kWidth = (int)kWidth;
     }
-    // make an array of pthread_t
-    pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, MedianFramesThread, (void *) &paramArrayPtr[iThread]);
@@ -1242,11 +1324,11 @@ extern "C" int MedianFrames (MedianFramesParamsPtr p){
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_join (threadsPtr[iThread], NULL);
     }
-    // free memory for pThreads Array
-    WMDisposePtr ((Ptr)threadsPtr);
-    // Free paramaterArray memory
-    WMDisposePtr ((Ptr)paramArrayPtr);
-    WaveHandleModified(outPutWaveH);			// Inform Igor that we have changed the output wave.
+    WMDisposePtr ((Ptr)bufferPtr);      // free memory for buffer
+    WMDisposePtr ((Ptr)threadsPtr);     // free memory for pThreads Array
+    WMDisposePtr ((Ptr)paramArrayPtr);  // free memory for paramaters Array
+    WMDisposeHandle (p->outPutPath);    // free input string for output path
+    WaveHandleModified(outPutWaveH);	// Inform Igor that we have changed the output wave.
     p -> result = (0);
     return (0);
 }

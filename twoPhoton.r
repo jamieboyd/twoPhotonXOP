@@ -54,7 +54,7 @@ resource 'STR#' (1100) {					/* custom error messages */
         /*[13] BADFACTOR */
         "The scaling factor specified does not divide evenly into the image width.",
         /*[14] BADDSTYPE */
-        "The Down Sample Type was not recognized. Allowed types are 1 = average, 2 = sum, 3 = max, 4 = median.",
+        "The Down Sample or Projection Type was not recognized.",
         /*[15] WAVEERROR_NOS */
         "A wave access error ocurred.",
         /*[16] OVERWRITEALERT*/
@@ -73,6 +73,10 @@ resource 'STR#' (1100) {					/* custom error messages */
         "A symmetric convolution kernel must be a 1D single precision floating point wave of odd length.",
         /*[23] NOTUNSIGNED */
         "This function only works with unsigned integer data.",
+        /*[24] MEMFAIL */
+        "Temporary memory could not be allocated for processing",
+        /* [25] NUMTYPE */
+        "Can not do this function on wave of this type",
 	}
 };
 
@@ -86,81 +90,87 @@ resource 'XOPI' (1100) {
 
 resource 'XOPF' (1100) {
 	{
-		"KalmanAllFrames",					/* function name */
-		F_WAVE | F_THREADSAFE | F_EXTERNAL,	/* function category */
-        NT_FP64,						    /* return value type */
-		{
-			WAVE_TYPE,
-            HSTRING_TYPE,
-            NT_FP64,
-            NT_FP64,
+		"GetSetNumProcessors",                      /* function name */
+        F_UTIL | F_EXTERNAL,                        /* function category*/
+        NT_FP64,                                    /* return value type */
+        {                                           /* No paramaters */
+        },
+        
+        "KalmanAllFrames",					        /* function name */
+        F_ANLYZWAVES  | F_THREADSAFE | F_EXTERNAL,	/* function category */
+        NT_FP64,						            /* return value type */
+		{                                           /* parameter types */
+			WAVE_TYPE,                              // input wave
+            HSTRING_TYPE,                           // output wave and path, to be created
+            NT_FP64,                                // multiplier
+            NT_FP64,                                // overwriting output wave is ok
 		},
 
-		"KalmanSpecFrames",			        /* function name */
-		F_WAVE | F_THREADSAFE | F_EXTERNAL,	/* function category */
-		NT_FP64,							/* return value type */
-		{
-			WAVE_TYPE,						/* parameter types */
-            NT_FP64,                        // Start of layers to average
-            NT_FP64,                        // End of layers to average
-            WAVE_TYPE,                      // output wave
-            NT_FP64,                        // layer of output wave to modify
-            NT_FP64,                        // multiplier
+		"KalmanSpecFrames",			                /* function name */
+        F_ANLYZWAVES  | F_THREADSAFE | F_EXTERNAL,  /* function category */
+		NT_FP64,							        /* return value type */
+		{                                           /* parameter types */
+			WAVE_TYPE,                              // input wave
+            NT_FP64,                                // Start of layers to average
+            NT_FP64,                                // End of layers to average
+            WAVE_TYPE,                              // output wave
+            NT_FP64,                                // layer of output wave to modify
+            NT_FP64,                                // multiplier
 		},
 
-		"KalmanWaveToFrame",			/* function name */
-        F_WAVE | F_THREADSAFE | F_EXTERNAL,    /* function category */
-		NT_FP64,							/* return value type */
-		{
-			WAVE_TYPE,						/* parameter types */
-            NT_FP64,                        // multiplier
+		"KalmanWaveToFrame",                        /* function name */
+        F_ANLYZWAVES  | F_THREADSAFE | F_EXTERNAL,  /* function category */
+		NT_FP64,							        /* return value type */
+		{                                           /* parameter types */
+			WAVE_TYPE,						        // input and output wave
+            NT_FP64,                                // multiplier
 		},
 
-		"KalmanList",		                    /* function name */
-        F_WAVE | F_THREADSAFE | F_EXTERNAL,    /* function category */
-		NT_FP64,							/* return value type */
-		{
-            HSTRING_TYPE,    // Semicolon separated list of input waves
-            HSTRING_TYPE,    // Path and name of output wave
-            NT_FP64,        //multiplier
-            NT_FP64,        // overwrite output wave
+		"KalmanList",		                        /* function name */
+        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,   /* function category */
+		NT_FP64,                                    /* return value type */
+		{                                           /* parameter types */
+            HSTRING_TYPE,                           // Semicolon separated list of input waves
+            HSTRING_TYPE,                           // Path and name of output wave
+            NT_FP64,                                // multiplier
+            NT_FP64,                                // overwriting output wave is ok
 		},
 
-		"KalmanNext",					/* function name */
-        F_WAVE | F_THREADSAFE | F_EXTERNAL,    /* function category */
-		NT_FP64,							/* return value type */
-		{
-            WAVE_TYPE,        // Input Wave
-             WAVE_TYPE,        // output wave
-            NT_FP64,        // how many waves have previously been added
+		"KalmanNext",                               /* function name */
+        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,   /* function category */
+		NT_FP64,                                    /* return value type */
+		{                                           /* parameter types */
+            WAVE_TYPE,                              // Input Wave
+             WAVE_TYPE,                             // output wave
+            NT_FP64,                                // how many waves have previously been added
 		},
         
-        "ProjectAllFrames",
-        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
-        NT_FP64,
-        {
-            WAVE_TYPE,        // Input wave
-            HSTRING_TYPE,    //     string with path to output wave
-            NT_FP64,        //    Which dimension we want to collapse on, 0 for x, 1 for y, 2 for z
-            NT_FP64,        //  overwrite
-            NT_FP64,        //     minimum (0) or maximum (1) projection
+        "ProjectAllFrames",                         /* function name */
+        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,   /* function category */
+        NT_FP64,                                    /* return value type */
+        {                                           /* parameter types */
+            WAVE_TYPE,                              // Input wave
+            HSTRING_TYPE,                           // string with path to output wave
+            NT_FP64,                                // Which dimension we want to collapse on, 0 for x, 1 for y, 2 for z
+            NT_FP64,                                // overwriting output wave is ok
+            NT_FP64,                                // projection type minimum (0), maximum (1), avg (2), median (3)
         },
-        "ProjectSpecFrames",
-
-        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
-        NT_FP64,
-        {
-            WAVE_TYPE,    // Input wave
-            NT_FP64,    // start layer
-            NT_FP64,    // end layer
-            WAVE_TYPE,    // output wave
-            NT_FP64,    // output layer
-            NT_FP64,    // Which dimension we want to collapse on, 0 for x, 1 for y, 2 for z
-            NT_FP64,    // minimum (0), maximum (1), average (2), or median (3) projection
+        
+        "ProjectSpecFrames",                        /* function name */
+        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,   /* function category */
+        NT_FP64,                                    /* return value type */
+        {                                           /* parameter types */
+            WAVE_TYPE,                              // Input wave
+            NT_FP64,                                // start layer
+            NT_FP64,                                // end layer
+            WAVE_TYPE,                              // output wave
+            NT_FP64,                                // output layer
+            NT_FP64,                                // Which dimension we want to collapse on, 0 for x, 1 for y, 2 for z
+            NT_FP64,                                // projection type minimum (0), maximum (1), avg (2), median (3)
         },
         
         "ProjectXSlice",
-        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
+        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,    /* function category */
         NT_FP64,
         {
             WAVE_TYPE,    // Input wave

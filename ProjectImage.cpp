@@ -1,69 +1,51 @@
 #include "twoPhoton.h"
 
-/**************************************************************************************************************
- Code for making Minimum/Maximum/Avg/Median Intensity Projections.
+/* ------------------------------Minimum/Maximum/Avg/Median Intensity Projections----------------------
+ Code for making Minimum/Maximum/Avg/Median Intensity Projections along X,Y, and Z axes
  Last Modified 2025/06/13 by Jamie Boyd
+ ------------------------------------------------------------------------------------------------------- */
  
- ***************************************************************************************************************/
-// Structure to pass data to each ProjectThread
-// Last Modified 2013/07/16 by Jamie Boyd
-typedef struct ProjectThreadParams{
-	int inPutWaveType; // WM codes for wave types
-	char* inPutDataStartPtr; // pointer to start of data in input wave
-	char* outPutDataStartPtr; // pointer to start of data in output wave (may be same as outPut wave)
-	UInt8 flatDim; // 0 for X projection, 1 for Y projection, 2 for Z projection
-	UInt8 projMode; // 1 for a maximum intensity projection, 0 for a minimum intensity projection
-	CountInt xSize; // size of X dimension (number of rows)
-	CountInt ySize; // size of Y dimension (number of columns)
-	CountInt zSize; // size of Z dimension (number of layers)
-	CountInt startP; // starting point for projection
-	CountInt endP; // end point for projection
-	UInt8 ti; // number of this thread, starting from 0
-	UInt8 tN; // total number of threads
-} ProjectThreadParams, *ProjectThreadParamsPtr;
-
-/***********************************************************************************************************************
- The following templates get a single slice or makes a minimum or maximum intensity projection for one of the 8 types of wave data in the
- X,Y,or Z dimension, for either of the Project functions
+/* The following templates get a single slice or makes a minimum or maximum intensity projection for one of
+ the 8 types of wave data in the X,Y,or Z dimension, for either of the Project functions
  srcWaveStart: pointer to the start of the data in the 3D input wave
  desWaveStart: pointer to the start of the data in the 2D or 3D outPut wave
  projMode: 1 for maximum intensity projection, 0 for minimum intensity projection
- 
+ example:
  X projection - looking for max/min with a range of columns at a single YZ location
  result is wave with dim 0 = ySize, dim 1 =zSize
  using Igor terminology of x being columns and y being rows and z being layers
  Last Modified 2014/01/27 by Jamie Boyd */
 
 template <typename T> void doProjectX(T *srcWaveStart, T *destWaveStart, UInt8 projMode, CountInt xSize, CountInt ySize, CountInt zSize, CountInt startP, CountInt endP, UInt8 ti, UInt8 tN){
-	// number of YZ locations to look at
-	CountInt yzLocs = ySize * zSize;
-	// Number of ZY locations to do for this thread. divide YZ locations among threads. truncated to an integer
-	CountInt tPoints = yzLocs/tN;
-	// which point to start this thread on depends on thread number
-	CountInt inStartPos = startP + (ti * tPoints * xSize);
-	CountInt outStartPos = ti * tPoints;
-	// the last thread gets any left-over YZ locations
-	if (ti == tN - 1) tPoints += (yzLocs % tN);
-	// number of columns to do within each YZ location.
-	CountInt ColumnsToDo = endP - startP + 1;
-	// number to skip to get to start of next column at this ZY location
-	// number of points to get to next YZloc
-	CountInt toNextYZ = xSize - ColumnsToDo;
-	// pointers for loops
-	T *srcWave = srcWaveStart + inStartPos;
-	T *destWave = destWaveStart + outStartPos;
-	T *destWaveEnd;
-	T* lastColumn; // last column at this YZ location
-	if (ColumnsToDo == 1){ // getting a single slice
-		// adjust toNextYZ for lack of inner loop
-		toNextYZ += 1;
-		// loop through YZ locations
-		for (destWaveEnd = destWave + tPoints; destWave < destWaveEnd; destWave++, srcWave += toNextYZ){
-			// set destination to chosen column at this source ZY location
-			*destWave = *srcWave;
-		}
-	}else{ // doing a projection
-		switch(projMode){
+    // number of YZ locations to look at
+    CountInt yzLocs = ySize * zSize;
+    // Number of ZY locations to do for this thread. divide YZ locations among threads. truncated to an integer
+    CountInt tPoints = yzLocs/tN;
+    // which point to start this thread on depends on thread number
+    CountInt inStartPos = startP + (ti * tPoints * xSize);
+    CountInt outStartPos = ti * tPoints;
+    // the last thread gets any left-over YZ locations
+    if (ti == tN - 1) tPoints += (yzLocs % tN);
+    // number of columns to do within each YZ location.
+    CountInt ColumnsToDo = endP - startP + 1;
+    // number to skip to get to start of next column at this ZY location
+    // number of points to get to next YZloc
+    CountInt toNextYZ = xSize - ColumnsToDo;
+    // pointers for loops
+    T *srcWave = srcWaveStart + inStartPos;
+    T *destWave = destWaveStart + outStartPos;
+    T *destWaveEnd;
+    T* lastColumn; // last column at this YZ location
+    if (ColumnsToDo == 1){ // getting a single slice
+        // adjust toNextYZ for lack of inner loop
+        toNextYZ += 1;
+        // loop through YZ locations
+        for (destWaveEnd = destWave + tPoints; destWave < destWaveEnd; destWave++, srcWave += toNextYZ){
+            // set destination to chosen column at this source ZY location
+            *destWave = *srcWave;
+        }
+    }else{ // doing a projection
+        switch(projMode){
             case 0: // Minimum projection
                 // loop through YZ locations looking for minimum
                 for (destWaveEnd = destWave + tPoints; destWave < destWaveEnd; destWave++, srcWave += toNextYZ){
@@ -119,37 +101,37 @@ template <typename T> void doProjectX(T *srcWaveStart, T *destWaveStart, UInt8 p
  result is wave with dim 0 = xSize, dim 1 =zSize
  Last Modified 2014/01/27 by Jamie Boyd */
 template <typename T> void doProjectY(T *srcWaveStart, T *destWaveStart, UInt8 projMode, CountInt xSize, CountInt ySize, CountInt zSize, CountInt startP, CountInt endP, UInt8 ti, UInt8 tN){
-	// number of layers to do in each thread = layers/threads.  truncated to an integer
-	// each layer needs to be in a single thread because offset to next XZ location is different at end of a layer
-	CountInt tLayers = zSize/tN;
-	// which point to start this thread on depends on thread number * layers Per Thread . ti is 0 based
-	CountInt inStartPos = (startP * xSize) + (ti * tLayers * xSize * ySize);
-	CountInt outStartPos = ti * tLayers * xSize;
-	// the last thread gets any left-over layers
-	if (ti == tN - 1) tLayers += (zSize % tN);
-	// number of rows to look at in each XZ location
-	CountInt rowsToDo = endP - startP + 1;
-	CountInt toNextRow = xSize; // number to add to get to next row at this YZ location
-	CountInt toNextColumn = 1 - (rowsToDo * xSize); // number to add to get to next YZ location in this column
-	CountInt toNextLayer = (xSize * ySize) - xSize; // number to add to get to first YZ location in the next layer
-	T *srcWave = srcWaveStart + inStartPos;
-	T *destWave = destWaveStart + outStartPos;
-	T* lastRow; // last row at this XZ location
-	T* lastColumn; //last row of last column in this layer
-	T* lastLayer; // last row of last column of last layer
-	if (rowsToDo == 1){ // getting a single slice
-		// adjust toNextColumn for lack of innermost loop
-		toNextColumn += toNextRow;
-		// loop through layers (z)
-		for (lastLayer = srcWave + (tLayers * xSize * ySize); srcWave < lastLayer; srcWave += toNextLayer){
-			// loop through columns (x) in this layer
-			for (lastColumn = srcWave + xSize; srcWave < lastColumn; srcWave += toNextColumn, destWave++){
-				// set destination to chosen column in source row
-				*destWave = *srcWave;
-			}
-		}
-	}else{ // doing a projection
-		switch (projMode) {
+    // number of layers to do in each thread = layers/threads.  truncated to an integer
+    // each layer needs to be in a single thread because offset to next XZ location is different at end of a layer
+    CountInt tLayers = zSize/tN;
+    // which point to start this thread on depends on thread number * layers Per Thread . ti is 0 based
+    CountInt inStartPos = (startP * xSize) + (ti * tLayers * xSize * ySize);
+    CountInt outStartPos = ti * tLayers * xSize;
+    // the last thread gets any left-over layers
+    if (ti == tN - 1) tLayers += (zSize % tN);
+    // number of rows to look at in each XZ location
+    CountInt rowsToDo = endP - startP + 1;
+    CountInt toNextRow = xSize; // number to add to get to next row at this YZ location
+    CountInt toNextColumn = 1 - (rowsToDo * xSize); // number to add to get to next YZ location in this column
+    CountInt toNextLayer = (xSize * ySize) - xSize; // number to add to get to first YZ location in the next layer
+    T *srcWave = srcWaveStart + inStartPos;
+    T *destWave = destWaveStart + outStartPos;
+    T* lastRow; // last row at this XZ location
+    T* lastColumn; //last row of last column in this layer
+    T* lastLayer; // last row of last column of last layer
+    if (rowsToDo == 1){ // getting a single slice
+        // adjust toNextColumn for lack of innermost loop
+        toNextColumn += toNextRow;
+        // loop through layers (z)
+        for (lastLayer = srcWave + (tLayers * xSize * ySize); srcWave < lastLayer; srcWave += toNextLayer){
+            // loop through columns (x) in this layer
+            for (lastColumn = srcWave + xSize; srcWave < lastColumn; srcWave += toNextColumn, destWave++){
+                // set destination to chosen column in source row
+                *destWave = *srcWave;
+            }
+        }
+    }else{ // doing a projection
+        switch (projMode) {
             case 0:  // minimum projection
                 for (lastLayer = srcWave + (tLayers * xSize * ySize); srcWave < lastLayer; srcWave += toNextLayer){
                     // loop through columns (x) in this layer
@@ -206,7 +188,7 @@ template <typename T> void doProjectY(T *srcWaveStart, T *destWaveStart, UInt8 p
                 break;
         }
         
-	}
+    }
 }
 
 /***********************************************************************************************************************
@@ -214,34 +196,34 @@ template <typename T> void doProjectY(T *srcWaveStart, T *destWaveStart, UInt8 p
  // result is wave with dim 0 = xSize, dim 1 =ySize
  Last Modified 2013/01/27 by Jamie Boyd */
 template <typename T> void doProjectZ(T *srcWaveStart, T *destWaveStart, UInt8 projMode, CountInt xSize, CountInt ySize, CountInt startP, UInt8 endP, UInt8 ti, UInt8 tN){
-	
-	// total number of XY locations to process
-	CountInt xyLocs = (xSize * ySize);
-	// divide XY locations among threads. XYlocs per thread = total number of XYlocs/number of threads, truncated to an integer
-	CountInt tPoints = xyLocs/tN;
-	// which point to start this thread on depends on thread number * XY locations Per Thread . ti is 0 based
-	CountInt inStartPos = (startP * xSize * ySize) + (ti * tPoints);
-	CountInt outStartPos = ti * tPoints;
-	// the last thread gets any left-over XY locations
-	if (ti == tN - 1) tPoints += (xyLocs % tN);
-	// number of layers to do within each XYloc, and number to skip to get to start of next layer at this XYlocs
-	CountInt layersToDo = endP - startP + 1;
-	CountInt toNextLayer = xSize * ySize;
-	// number of points to get to next XYloc
-	CountInt toNextXY = 1 - (layersToDo * xSize * ySize);
-	// pointers for loops
-	T *srcWave = srcWaveStart + inStartPos;
-	T *destWave = destWaveStart + outStartPos;
-	T *destWaveEnd;
-	T* lastLayer; // last layer at this XY location
-	if (layersToDo == 1){ // getting a single slice
-		//adjust toNextXY for lack of innermost loop
-		toNextXY += toNextLayer;
-		for (destWaveEnd = destWave + tPoints; destWave < destWaveEnd; destWave++, srcWave += toNextXY){
-			*destWave = *srcWave; // set destination to chosen layer in source
-		}
-	}else{ // a max or min projection
-		switch (projMode) {
+    
+    // total number of XY locations to process
+    CountInt xyLocs = (xSize * ySize);
+    // divide XY locations among threads. XYlocs per thread = total number of XYlocs/number of threads, truncated to an integer
+    CountInt tPoints = xyLocs/tN;
+    // which point to start this thread on depends on thread number * XY locations Per Thread . ti is 0 based
+    CountInt inStartPos = (startP * xSize * ySize) + (ti * tPoints);
+    CountInt outStartPos = ti * tPoints;
+    // the last thread gets any left-over XY locations
+    if (ti == tN - 1) tPoints += (xyLocs % tN);
+    // number of layers to do within each XYloc, and number to skip to get to start of next layer at this XYlocs
+    CountInt layersToDo = endP - startP + 1;
+    CountInt toNextLayer = xSize * ySize;
+    // number of points to get to next XYloc
+    CountInt toNextXY = 1 - (layersToDo * xSize * ySize);
+    // pointers for loops
+    T *srcWave = srcWaveStart + inStartPos;
+    T *destWave = destWaveStart + outStartPos;
+    T *destWaveEnd;
+    T* lastLayer; // last layer at this XY location
+    if (layersToDo == 1){ // getting a single slice
+        //adjust toNextXY for lack of innermost loop
+        toNextXY += toNextLayer;
+        for (destWaveEnd = destWave + tPoints; destWave < destWaveEnd; destWave++, srcWave += toNextXY){
+            *destWave = *srcWave; // set destination to chosen layer in source
+        }
+    }else{ // a max or min projection
+        switch (projMode) {
             case 0: // minimum projection
                 for (destWaveEnd = destWave + tPoints; destWave < destWaveEnd; destWave++, srcWave += toNextXY){
                     *destWave = *srcWave; // set destination to first layer in source
@@ -283,106 +265,123 @@ template <typename T> void doProjectZ(T *srcWaveStart, T *destWaveStart, UInt8 p
                 WMDisposePtr ((Ptr)bufferStart);
                 break;
         }
-	}
-}
-/***********************************************************************************************************************
- Each thread to do a maximum or minimum intensity projection through X,Y, or Z starts with this function
- Last Modified 2013/07/16 by Jamie Boyd */
-void* ProjectThread (void* threadarg){
-	
-	struct ProjectThreadParams* p;
-	p = (struct ProjectThreadParams*) threadarg;
-	switch (p->flatDim){
-		case 0:
-			switch(p->inPutWaveType){
-				case NT_I8:
-					doProjectX((char*)p->inPutDataStartPtr, (char*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case (NT_I8 | NT_UNSIGNED):
-					doProjectX((unsigned char*)p->inPutDataStartPtr , (unsigned char*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_I16:
-					doProjectX((short*)p->inPutDataStartPtr, (short*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case (NT_I16 | NT_UNSIGNED):
-					doProjectX((unsigned short*)p->inPutDataStartPtr , (unsigned short*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_I32:
-					doProjectX((long*)p->inPutDataStartPtr, (long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case (NT_I32| NT_UNSIGNED):
-					doProjectX((unsigned long*)p->inPutDataStartPtr, (unsigned long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_FP32:
-					doProjectX((float*)p->inPutDataStartPtr, (float*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_FP64:
-					doProjectX((double*)p->inPutDataStartPtr, (double*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-			}
-			break;
-		case 1:
-			switch(p->inPutWaveType){
-				case NT_I8:
-					doProjectY((char*)p->inPutDataStartPtr, (char*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case (NT_I8 | NT_UNSIGNED):
-					doProjectY((unsigned char*)p->inPutDataStartPtr , (unsigned char*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_I16:
-					doProjectY((short*)p->inPutDataStartPtr, (short*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case (NT_I16 | NT_UNSIGNED):
-					doProjectY((unsigned short*)p->inPutDataStartPtr , (unsigned short*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_I32:
-					doProjectY((long*)p->inPutDataStartPtr, (long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case (NT_I32| NT_UNSIGNED):
-					doProjectY((unsigned long*)p->inPutDataStartPtr, (unsigned long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_FP32:
-					doProjectY((float*)p->inPutDataStartPtr, (float*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_FP64:
-					doProjectY((double*)p->inPutDataStartPtr, (double*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
-					break;
-			}
-			break;
-		case 2:
-			switch(p->inPutWaveType){
-				case NT_I8:
-					doProjectZ((char*)p->inPutDataStartPtr, (char*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case (NT_I8 | NT_UNSIGNED):
-					doProjectZ((unsigned char*)p->inPutDataStartPtr , (unsigned char*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_I16:
-					doProjectZ((short*)p->inPutDataStartPtr, (short*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case (NT_I16 | NT_UNSIGNED):
-					doProjectZ((unsigned short*)p->inPutDataStartPtr , (unsigned short*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_I32:
-					doProjectZ((long*)p->inPutDataStartPtr, (long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case (NT_I32| NT_UNSIGNED):
-					doProjectZ((unsigned long*)p->inPutDataStartPtr, (unsigned long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_FP32:
-					doProjectZ((float*)p->inPutDataStartPtr, (float*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
-					break;
-				case NT_FP64:
-					doProjectZ((double*)p->inPutDataStartPtr, (double*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
-					break;
-			}
-			break;
-	}
-	return 0;
+    }
 }
 
-/*****************************************************************************************************************
- Makes a project image of a 3D wave, either into a 2D wave, or by collapsing the input 3D wave into 2D
+
+// Structure to pass data to each ProjectThread
+// Last Modified 2013/07/16 by Jamie Boyd
+typedef struct ProjectThreadParams{
+    int inPutWaveType; // WM codes for wave types
+    char* inPutDataStartPtr; // pointer to start of data in input wave
+    char* outPutDataStartPtr; // pointer to start of data in output wave (may be same as outPut wave)
+    UInt8 flatDim; // 0 for X projection, 1 for Y projection, 2 for Z projection
+    UInt8 projMode; // 1 for a maximum intensity projection, 0 for a minimum intensity projection
+    CountInt xSize; // size of X dimension (number of rows)
+    CountInt ySize; // size of Y dimension (number of columns)
+    CountInt zSize; // size of Z dimension (number of layers)
+    CountInt startP; // starting point for projection
+    CountInt endP; // end point for projection
+    UInt8 ti; // number of this thread, starting from 0
+    UInt8 tN; // total number of threads
+} ProjectThreadParams, *ProjectThreadParamsPtr;
+
+
+/* Each thread to do a maximum or minimum intensity projection through X,Y, or Z starts with this function
+ Last Modified 2013/07/16 by Jamie Boyd */
+void* ProjectThread (void* threadarg){
+    struct ProjectThreadParams* p;
+    p = (struct ProjectThreadParams*) threadarg;
+    switch (p->flatDim){
+        case 0:
+            switch(p->inPutWaveType){
+                case NT_I8:
+                    doProjectX((char*)p->inPutDataStartPtr, (char*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I8 | NT_UNSIGNED):
+                    doProjectX((unsigned char*)p->inPutDataStartPtr , (unsigned char*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_I16:
+                    doProjectX((short*)p->inPutDataStartPtr, (short*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I16 | NT_UNSIGNED):
+                    doProjectX((unsigned short*)p->inPutDataStartPtr , (unsigned short*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_I32:
+                    doProjectX((long*)p->inPutDataStartPtr, (long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I32| NT_UNSIGNED):
+                    doProjectX((unsigned long*)p->inPutDataStartPtr, (unsigned long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_FP32:
+                    doProjectX((float*)p->inPutDataStartPtr, (float*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_FP64:
+                    doProjectX((double*)p->inPutDataStartPtr, (double*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+            }
+            break;
+        case 1:
+            switch(p->inPutWaveType){
+                case NT_I8:
+                    doProjectY((char*)p->inPutDataStartPtr, (char*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I8 | NT_UNSIGNED):
+                    doProjectY((unsigned char*)p->inPutDataStartPtr , (unsigned char*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_I16:
+                    doProjectY((short*)p->inPutDataStartPtr, (short*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I16 | NT_UNSIGNED):
+                    doProjectY((unsigned short*)p->inPutDataStartPtr , (unsigned short*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_I32:
+                    doProjectY((long*)p->inPutDataStartPtr, (long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I32| NT_UNSIGNED):
+                    doProjectY((unsigned long*)p->inPutDataStartPtr, (unsigned long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_FP32:
+                    doProjectY((float*)p->inPutDataStartPtr, (float*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_FP64:
+                    doProjectY((double*)p->inPutDataStartPtr, (double*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+            }
+            break;
+        case 2:
+            switch(p->inPutWaveType){
+                case NT_I8:
+                    doProjectZ((char*)p->inPutDataStartPtr, (char*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I8 | NT_UNSIGNED):
+                    doProjectZ((unsigned char*)p->inPutDataStartPtr , (unsigned char*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_I16:
+                    doProjectZ((short*)p->inPutDataStartPtr, (short*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I16 | NT_UNSIGNED):
+                    doProjectZ((unsigned short*)p->inPutDataStartPtr , (unsigned short*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_I32:
+                    doProjectZ((long*)p->inPutDataStartPtr, (long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I32| NT_UNSIGNED):
+                    doProjectZ((unsigned long*)p->inPutDataStartPtr, (unsigned long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_FP32:
+                    doProjectZ((float*)p->inPutDataStartPtr, (float*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_FP64:
+                    doProjectZ((double*)p->inPutDataStartPtr, (double*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+            }
+            break;
+    }
+    return 0;
+}
+
+/* Makes a project image of a 3D wave, either into a 2D wave, or by collapsing the input 3D wave into 2D
  The differences between ProjectAllFrames and ProjectSpecFrames:
  1 ProjectAllFrames makes a project image of ALL the layers in a 3D wave, while ProjectSpecFrames does a projection over a
  specified range of frames, with a starting and ending element
@@ -391,26 +390,26 @@ void* ProjectThread (void* threadarg){
  4 ProjectAllFrames has a flag for overwriting output wave if it already exists. ProjectSpecFrames does not
  
  typedef struct ProjectAllFramesParams
- double projMode			// 0 = mimimum intensity projection, 1 =maximum intensity projection, 2 = avg, 3 = median
- double overwrite;		//0 to give errors when wave already exists. non-zero to cheerfully overwrite existing wave.
- double flatDimension;	//Which dimension we want to collapse on, 0 for x, 1 for y, 2 for z
- Handle outPutPath;		// A handle to a string containing path to output wave we want to make
- waveHndl inPutWaveH;	//handle to the input wave
+ double projMode            // 0 = mimimum intensity projection, 1 =maximum intensity projection, 2 = avg, 3 = median
+ double overwrite;        //0 to give errors when wave already exists. non-zero to cheerfully overwrite existing wave.
+ double flatDimension;    //Which dimension we want to collapse on, 0 for x, 1 for y, 2 for z
+ Handle outPutPath;        // A handle to a string containing path to output wave we want to make
+ waveHndl inPutWaveH;    //handle to the input wave
  
  typedef struct ProjectSpecFramesParams
- double projMode			// 0 = mimimum intensity projection, 1 =maximum intensity projection, 2 = avg, 3 = median
- double flatDimension;	// the dimension that we are projecting along
- double outPutLayer;		//the layer in the output wave that receives the projection
- waveHndl outPutWaveH;	// A handle to output wave
- double inPutEndLayer;	//end of range of layers to project
- double inPutStartLayer;	//start of range of layers to project
- waveHndl inPutWaveH;	//handle to the input wave
+ double projMode            // 0 = mimimum intensity projection, 1 =maximum intensity projection, 2 = avg, 3 = median
+ double flatDimension;    // the dimension that we are projecting along
+ double outPutLayer;        //the layer in the output wave that receives the projection
+ waveHndl outPutWaveH;    // A handle to output wave
+ double inPutEndLayer;    //end of range of layers to project
+ double inPutStartLayer;    //start of range of layers to project
+ waveHndl inPutWaveH;    //handle to the input wave
  
  Also used to get a single slice from a 3D wave and place it in a 2D wave
  
  typedef struct ProjectSliceParams{
- double slice;	// X, Y  or Z slice to get
- waveHndl outPutWaveH;	//handle to the output wave
+ double slice;    // X, Y  or Z slice to get
+ waveHndl outPutWaveH;    //handle to the output wave
  waveHndl inPutWaveH;//handle to the input wave
  */
 
@@ -420,77 +419,79 @@ void* ProjectThread (void* threadarg){
  of the output wave
  Last Modified 2015/06/18 by Jamie Boyd*/
 extern "C" int ProjectSpecFrames (ProjectSpecFramesParamsPtr p){
-	int result =0;	// The error returned from various Wavemetrics functions
-	waveHndl inPutWaveH = NIL, outPutWaveH = NIL;	// Handles to the input and output waves
+    int result =0;    // The error returned from various Wavemetrics functions
+    waveHndl inPutWaveH = NIL, outPutWaveH = NIL;    // Handles to the input and output waves
     int inPutWaveType, outPutWaveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
-	int inPutDimensions,outPutDimensions;	// number of numDimensions in input and output waves
-	CountInt inPutDimensionSizes[MAX_DIMENSIONS+1], outPutDimensionSizes[MAX_DIMENSIONS+1];	// an array used to hold the width, height, layers, and chunk sizes
-	CountInt inPutWaveOffset, outPutWaveOffset;	//offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
-	char* srcWaveStart, *destWaveStart;	// Pointers to start of data in the inut and output waves. Need to use char for these to use WM function to get data offset
-	UInt8 iThread; // number of each thread, starting from 0
-	UInt8 nThreads; // total number of threads
-	CountInt startP = p->inPutStartLayer; // starting point for projection
-	CountInt endP = p->inPutEndLayer; // end point for projection
-	CountInt outPutP = p->outPutLayer;
-	UInt8 flatDimension = p->flatDimension;
-	try {
-		// Get handle to input wave make sure it exists.
-		inPutWaveH = p->inPutWaveH;
-		if (inPutWaveH == NIL) throw result= NON_EXISTENT_WAVE;
-		outPutWaveH = p->outPutWaveH;
-		if (outPutWaveH == NIL) throw result = NON_EXISTENT_WAVE;
-		// Get waves data type
-		inPutWaveType = WaveType(inPutWaveH);
-		outPutWaveType =  WaveType(outPutWaveH);
-		if (inPutWaveType != outPutWaveType) throw result = NOTSAMEWAVETYPE;
-		// Check that we don't have a text wave
-		if ((inPutWaveType==TEXT_WAVE_TYPE) ||  (outPutWaveType==TEXT_WAVE_TYPE)) throw result = NOTEXTWAVES;
-		// Get number of used dimensions in waves.
-		if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
-		if (MDGetWaveDimensions(outPutWaveH, &outPutDimensions, outPutDimensionSizes)) throw result = WAVEERROR_NOS;
-		// Check that input wave is 3D and output wave is 2D or 3D
-		if (inPutDimensions != 3) throw result = INPUTNEEDS_3D_WAVE;
-		if ((outPutDimensions != 2) && (outPutDimensions != 3)) throw result = OUTPUTNEEDS_2D3D_WAVE;
-		// Check that the dimensionality of the input and output waves match up for the dimension we are trying to collapse
-		switch (flatDimension){
-			case 0:	// X projection  output is dim [0] = y-size, dim [1] = z-Size
-				if ((outPutDimensionSizes[0] != inPutDimensionSizes [1]) || (outPutDimensionSizes[1] != inPutDimensionSizes [2])) throw result = NOTSAMEDIMSIZE;
-				break;
-			case 1:	// Y projection  output is dim [0] = x-size, dim [1] = z-Size
-				if ((outPutDimensionSizes[0] != inPutDimensionSizes [0]) || (outPutDimensionSizes[1] != inPutDimensionSizes [2]))
-					throw result = NOTSAMEDIMSIZE;
-				break;
-			case 2:	//Z projection  output is dim [0] = x-size, dim [1] = y-Size
-				if ((outPutDimensionSizes[0] != inPutDimensionSizes [0]) || (outPutDimensionSizes[1] != inPutDimensionSizes [1]))
-					throw result = NOTSAMEDIMSIZE;
+    int inPutDimensions,outPutDimensions;    // number of numDimensions in input and output waves
+    CountInt inPutDimensionSizes[MAX_DIMENSIONS+1], outPutDimensionSizes[MAX_DIMENSIONS+1];    // an array used to hold the width, height, layers, and chunk sizes
+    CountInt inPutWaveOffset, outPutWaveOffset;    //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
+    char* srcWaveStart, *destWaveStart;    // Pointers to start of data in the inut and output waves. Need to use char for these to use WM function to get data offset
+    UInt8 iThread; // number of each thread, starting from 0
+    UInt8 nThreads; // total number of threads
+    CountInt startP = p->inPutStartLayer; // starting point for projection
+    CountInt endP = p->inPutEndLayer; // end point for projection
+    CountInt outPutP = p->outPutLayer;
+    UInt8 flatDimension = p->flatDimension;
+    try {
+        // check projection mode
+        if ((p->projMode < 0) || (p->projMode > 3)) throw result = BADDSTYPE;
+        // Get handle to input wave make sure it exists.
+        inPutWaveH = p->inPutWaveH;
+        if (inPutWaveH == NIL) throw result= NON_EXISTENT_WAVE;
+        outPutWaveH = p->outPutWaveH;
+        if (outPutWaveH == NIL) throw result = NON_EXISTENT_WAVE;
+        // Get waves data type
+        inPutWaveType = WaveType(inPutWaveH);
+        outPutWaveType =  WaveType(outPutWaveH);
+        if (inPutWaveType != outPutWaveType) throw result = NOTSAMEWAVETYPE;
+        // Check that we don't have a text wave
+        if ((inPutWaveType==TEXT_WAVE_TYPE) ||  (outPutWaveType==TEXT_WAVE_TYPE)) throw result = NOTEXTWAVES;
+        // Get number of used dimensions in waves.
+        if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
+        if (MDGetWaveDimensions(outPutWaveH, &outPutDimensions, outPutDimensionSizes)) throw result = WAVEERROR_NOS;
+        // Check that input wave is 3D and output wave is 2D or 3D
+        if (inPutDimensions != 3) throw result = INPUTNEEDS_3D_WAVE;
+        if ((outPutDimensions != 2) && (outPutDimensions != 3)) throw result = OUTPUTNEEDS_2D3D_WAVE;
+        // Check that the dimensionality of the input and output waves match up for the dimension we are trying to collapse
+        switch (flatDimension){
+            case 0:    // X projection  output is dim [0] = y-size, dim [1] = z-Size
+                if ((outPutDimensionSizes[0] != inPutDimensionSizes [1]) || (outPutDimensionSizes[1] != inPutDimensionSizes [2])) throw result = NOTSAMEDIMSIZE;
                 break;
-			default:
-				throw result = BADDIMENSION;
-				break;
-		}
-		// Check input range
-		if (startP > endP){
-			CountInt temp;
-			SWAP (startP, endP);
-		}
+            case 1:    // Y projection  output is dim [0] = x-size, dim [1] = z-Size
+                if ((outPutDimensionSizes[0] != inPutDimensionSizes [0]) || (outPutDimensionSizes[1] != inPutDimensionSizes [2]))
+                    throw result = NOTSAMEDIMSIZE;
+                break;
+            case 2:    //Z projection  output is dim [0] = x-size, dim [1] = y-Size
+                if ((outPutDimensionSizes[0] != inPutDimensionSizes [0]) || (outPutDimensionSizes[1] != inPutDimensionSizes [1]))
+                    throw result = NOTSAMEDIMSIZE;
+                break;
+            default:
+                throw result = BADDIMENSION;
+                break;
+        }
+        // Check input range
+        if (startP > endP){
+            CountInt temp;
+            SWAP (startP, endP);
+        }
         
-		// clip start point to 0, last point of the input wave
-		if (startP < 0) startP = 0;
+        // clip start point to 0, last point of the input wave
+        if (startP < 0) startP = 0;
         if (startP > inPutDimensionSizes [flatDimension] -1) startP = inPutDimensionSizes [flatDimension] -1;
-		// Clip end point to 0, the last point of the input wave
-		if (endP > inPutDimensionSizes [flatDimension] -1) endP = inPutDimensionSizes [flatDimension] -1;
-		if (endP < 0)endP = 0;
+        // Clip end point to 0, the last point of the input wave
+        if (endP > inPutDimensionSizes [flatDimension] -1) endP = inPutDimensionSizes [flatDimension] -1;
+        if (endP < 0)endP = 0;
         //check that output layer is within the size of the output wave
-		if (outPutDimensions == 2){
-			if (outPutP != 0) throw result = INVALIDOUTPUTFRAME;
-		}else{
-			if ((outPutP > outPutDimensionSizes [2] - 1) || (outPutP < 0)) throw result = INVALIDOUTPUTFRAME;
-		}
+        if (outPutDimensions == 2){
+            if (outPutP != 0) throw result = INVALIDOUTPUTFRAME;
+        }else{
+            if ((outPutP > outPutDimensionSizes [2] - 1) || (outPutP < 0)) throw result = INVALIDOUTPUTFRAME;
+        }
         // Get the offsets to the data in the input
-		if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutWaveOffset)) throw result = WAVEERROR_NOS;
+        if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutWaveOffset)) throw result = WAVEERROR_NOS;
         srcWaveStart = (char*)(*inPutWaveH) + inPutWaveOffset;
         if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutWaveOffset)) throw result = WAVEERROR_NOS;
-		destWaveStart = (char*)(*outPutWaveH) + outPutWaveOffset;
+        destWaveStart = (char*)(*outPutWaveH) + outPutWaveOffset;
     }catch (int result){
         p -> result = (double)(result - FIRST_XOP_ERR);
         #ifdef NO_IGOR_ERR
@@ -560,77 +561,80 @@ extern "C" int ProjectSpecFrames (ProjectSpecFramesParamsPtr p){
  Makes a projection Image of all columns or rows or layers in the input wave and makes a 2D wave to put the result into
  Last Modified 2013/07/16 by Jamie Boyd */
 extern "C" int ProjectAllFrames (ProjectAllFramesParamsPtr p){
-	int result =0;	// The error returned from various Wavemetrics functions
-	waveHndl inPutWaveH, outPutWaveH; // Handles to the input and output waves
-	int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
-	int numDimensions;	// number of numDimensions in input and output waves
-	CountInt inPutDimensionSizes[MAX_DIMENSIONS+1], outPutDimensionSizes[MAX_DIMENSIONS+1];	// an array used to hold the width, height, layers, and chunk sizes
-	UInt16 outPutPathLen;	// Length of the path to the target folder (output path - wave name)
-	DataFolderHandle inPutDFHandle=NULL, outPutDFHandle=NULL;	// Handle to the datafolder where we will put the output wave
-	DFPATH inPutPath, outPutPath;	// C string to hold data folder path of output wave
-	WVNAME inPutWaveName, outPutWaveName;	// C string to hold name of output wave
-	UInt8 flatDimension = p->flatDimension;
-	UInt8 flatten =0;
-	CountInt endP;
-	int overWrite= p->overwrite;
-	try{
-		// Get handle to input wave make sure it exists.
-		inPutWaveH = p->inPutWaveH;
-		if (inPutWaveH == NIL) throw result = NON_EXISTENT_WAVE;
-		// Get wave data type
-		waveType = WaveType(inPutWaveH);
-		// Check that we don't have a text wave
-		if (waveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
-		// Get number of used numDimensions in input wave.
-		if (MDGetWaveDimensions(inPutWaveH, &numDimensions, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
-		// Check that input wave is 3D
-		if (numDimensions != 3)
-			throw result = INPUTNEEDS_3D_WAVE;
-		// Set the sizes of the output wave as appropriate for the dimension we want to squish
-		switch (flatDimension){
-			case 0:	// X projection  output is dim [0] = y-size, dim [1] = z-Size
-				outPutDimensionSizes [0] = inPutDimensionSizes [1];
-				outPutDimensionSizes [1] = inPutDimensionSizes [2];
-				endP = inPutDimensionSizes [0] - 1;
-				break;
-			case 1:// Y projection  output is dim [0] = x-size, dim [1] = z-Size
-				outPutDimensionSizes [0] = inPutDimensionSizes [0];
-				outPutDimensionSizes [1] = inPutDimensionSizes [2];
-				endP = inPutDimensionSizes [1] - 1;
-				break;
-			case 2:	//z dimension
-				outPutDimensionSizes [0] = inPutDimensionSizes [0];
-				outPutDimensionSizes [1] = inPutDimensionSizes [1];
-				endP = inPutDimensionSizes [2] - 1;
-				break;
-			default:
-				throw result = BADDIMENSION;
-				break;
-		}
-		outPutDimensionSizes [2] = 0;
-		outPutDimensionSizes [3] = 0;
-		// If outPutPath is empty string, we are overwriting existing wave
-		outPutPathLen = WMGetHandleSize (p->outPutPath);
-		if (outPutPathLen == 0){
-			if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
-			outPutWaveH = inPutWaveH;
-			flatten = 1;
-		}else{ // Parse outPut path
-			ParseWavePath (p->outPutPath, outPutPath, outPutWaveName);
-			// Clean up wave name: no liberal names
-			CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
+    int result =0;    // The error returned from various Wavemetrics functions
+    waveHndl inPutWaveH, outPutWaveH; // Handles to the input and output waves
+    int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
+    int numDimensions;    // number of numDimensions in input and output waves
+    CountInt inPutDimensionSizes[MAX_DIMENSIONS+1], outPutDimensionSizes[MAX_DIMENSIONS+1];    // an array used to hold the width, height, layers, and chunk sizes
+    UInt16 outPutPathLen;    // Length of the path to the target folder (output path - wave name)
+    DataFolderHandle inPutDFHandle=NULL, outPutDFHandle=NULL;    // Handle to the datafolder where we will put the output wave
+    DFPATH inPutPath, outPutPath;    // C string to hold data folder path of output wave
+    WVNAME inPutWaveName, outPutWaveName;    // C string to hold name of output wave
+    UInt8 flatDimension = p->flatDimension;
+    UInt8 flatten =0;
+    CountInt endP;
+    int overWrite= p->overwrite;
+    try{
+        // check projection mode
+        if ((p->projMode < 0) || (p->projMode > 3)) throw result = BADDSTYPE;
+        // Get handle to input wave make sure it exists.
+        inPutWaveH = p->inPutWaveH;
+        if (inPutWaveH == NIL) throw result = NON_EXISTENT_WAVE;
+        // Get wave data type
+        waveType = WaveType(inPutWaveH);
+        // Check that we don't have a text wave
+        if (waveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
+        // Get number of used numDimensions in input wave.
+        if (MDGetWaveDimensions(inPutWaveH, &numDimensions, inPutDimensionSizes)) throw result = WAVEERROR_NOS;
+        // Check that input wave is 3D
+        if (numDimensions != 3)
+            throw result = INPUTNEEDS_3D_WAVE;
+        // Set the sizes of the output wave as appropriate for the dimension we want to squish
+        switch (flatDimension){
+            case 0:    // X projection  output is dim [0] = y-size, dim [1] = z-Size
+                outPutDimensionSizes [0] = inPutDimensionSizes [1];
+                outPutDimensionSizes [1] = inPutDimensionSizes [2];
+                endP = inPutDimensionSizes [0] - 1;
+                break;
+            case 1:// Y projection  output is dim [0] = x-size, dim [1] = z-Size
+                outPutDimensionSizes [0] = inPutDimensionSizes [0];
+                outPutDimensionSizes [1] = inPutDimensionSizes [2];
+                endP = inPutDimensionSizes [1] - 1;
+                break;
+            case 2:    //z dimension
+                outPutDimensionSizes [0] = inPutDimensionSizes [0];
+                outPutDimensionSizes [1] = inPutDimensionSizes [1];
+                endP = inPutDimensionSizes [2] - 1;
+                break;
+            default:
+                throw result = BADDIMENSION;
+                break;
+        }
+        outPutDimensionSizes [2] = 0;
+        outPutDimensionSizes [3] = 0;
+        // If outPutPath is empty string, we are overwriting existing wave
+        outPutPathLen = WMGetHandleSize (p->outPutPath);
+        if (outPutPathLen == 0){
+            if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
+            outPutWaveH = inPutWaveH;
+            flatten = 1;
+        }else{ // Parse outPut path
+            ParseWavePath (p->outPutPath, outPutPath, outPutWaveName);
+            // Clean up wave name: no liberal names
+            CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
             //check that data folder is valid and get a handle to the datafolder
-			if (GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result = WAVEERROR_NOS;
-			//Test for overwriting
-			WaveName (inPutWaveH, inPutWaveName);
-			GetWavesDataFolder (inPutWaveH, &inPutDFHandle);
-			GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath);
-			if ((CmpStr (inPutPath,outPutPath) ==0) && (CmpStr (inPutWaveName,outPutWaveName) ==0)){	// Then we would overrite input wave
-				if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
-				flatten = 1;
-			}else{
-				// make the output wave
-				if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, outPutDimensionSizes,waveType, overWrite)) throw result = WAVEERROR_NOS;
+            if (GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result = WAVEERROR_NOS;
+            //Test for overwriting
+            WaveName (inPutWaveH, inPutWaveName);
+            GetWavesDataFolder (inPutWaveH, &inPutDFHandle);
+            GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath);
+            if ((CmpStr (inPutPath,outPutPath) ==0) && (CmpStr (inPutWaveName,outPutWaveName) ==0)){    // Then we would overrite input wave
+                if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
+                flatten = 1;
+                outPutWaveH = inPutWaveH;
+            }else{
+                // make the output wave
+                if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, outPutDimensionSizes,waveType, overWrite)) throw result = WAVEERROR_NOS;
                 }
             }
         }catch (int (result)){
@@ -641,81 +645,108 @@ extern "C" int ProjectAllFrames (ProjectAllFramesParamsPtr p){
                 return (result);
             #endif
         }
-		// fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
-		ProjectSpecFramesParams Spec;
-		ProjectSpecFramesParamsPtr pSpec = &Spec;
-		Spec.inPutWaveH = inPutWaveH;
-		Spec.inPutStartLayer = 0;
-		Spec.inPutEndLayer=endP;
-		Spec.outPutWaveH =outPutWaveH;
-		Spec.outPutLayer =0;
-		Spec.projMode = p->projMode;
-		Spec.flatDimension=p->flatDimension;
-		ProjectSpecFrames(pSpec);
-		if (flatten){
+        // fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
+        ProjectSpecFramesParams Spec;
+        ProjectSpecFramesParamsPtr pSpec = &Spec;
+        Spec.inPutWaveH = inPutWaveH;
+        Spec.inPutStartLayer = 0;
+        Spec.inPutEndLayer=endP;
+        Spec.outPutWaveH =outPutWaveH;
+        Spec.outPutLayer =0;
+        Spec.projMode = p->projMode;
+        Spec.flatDimension=p->flatDimension;
+        ProjectSpecFrames(pSpec);
+        if (flatten){
             MDChangeWave (outPutWaveH, -1, outPutDimensionSizes);
-		}
-		if (p->outPutPath)
-			WMDisposeHandle(p->outPutPath);
-		p->result = (0);
-		return (0);
+        }
+        if (p->outPutPath)
+            WMDisposeHandle(p->outPutPath);
+        p->result = (0);
+        return (0);
 }
 
 /*****************************************************************************************************************
  Gets an X slice from a 3D wave and puts it a pre-existing 2D wave of the right dimensions
  typedef struct ProjectSliceParams{
- double slice;	// X, Y  or Z slice to get
- waveHndl outPutWaveH;	//handle to the output wave
+ double slice;    // X, Y  or Z slice to get
+ waveHndl outPutWaveH;    //handle to the output wave
  waveHndl inPutWaveH;//handle to the input wave*/
 
 extern "C" int ProjectXSlice (ProjectSliceParamsPtr p) {
-	int result;
-	// fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
-	ProjectSpecFramesParams Spec;
-	ProjectSpecFramesParamsPtr pSpec = &Spec;
-	Spec.inPutWaveH = p->inPutWaveH;
-	Spec.inPutStartLayer = p->slice;
-	Spec.inPutEndLayer=p->slice;
-	Spec.outPutWaveH =p->outPutWaveH;
-	Spec.outPutLayer =0;
-	Spec.flatDimension=0; //for X projection
-	result = ProjectSpecFrames (pSpec);
-	p->result= result;
-	return result;
+    int result;
+    // fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
+    ProjectSpecFramesParams Spec;
+    ProjectSpecFramesParamsPtr pSpec = &Spec;
+    Spec.inPutWaveH = p->inPutWaveH;
+    Spec.inPutStartLayer = p->slice;
+    Spec.inPutEndLayer=p->slice;
+    Spec.outPutWaveH =p->outPutWaveH;
+    Spec.outPutLayer =0;
+    Spec.flatDimension=0; //for X projection
+    result = ProjectSpecFrames (pSpec);
+    if (result){
+        p->result = result;
+#ifdef NO_IGOR_ERR
+        return (0);
+#else
+        return (result + FIRST_XOP_ERR);
+#endif
+    }else{
+        p->result = (0);
+        return (0);
+    }
 }
 
 /*****************************************************************************************************************/
 // Gets a Y slice from a 3D wave and puts it a pre-existing 2D wave of the right dimensions
 extern "C" int ProjectYSlice (ProjectSliceParamsPtr p){
-	int result;
-	// fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
-	ProjectSpecFramesParams Spec;
-	ProjectSpecFramesParamsPtr pSpec = &Spec;
-	Spec.inPutWaveH = p->inPutWaveH;
-	Spec.inPutStartLayer = p->slice;
-	Spec.inPutEndLayer=p->slice;
-	Spec.outPutWaveH =p->outPutWaveH;
-	Spec.outPutLayer =0;
-	Spec.flatDimension=1; //for Y projection
-	result = ProjectSpecFrames (pSpec);
-	p->result= result;
-	return result;
+    int result;
+    // fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
+    ProjectSpecFramesParams Spec;
+    ProjectSpecFramesParamsPtr pSpec = &Spec;
+    Spec.inPutWaveH = p->inPutWaveH;
+    Spec.inPutStartLayer = p->slice;
+    Spec.inPutEndLayer=p->slice;
+    Spec.outPutWaveH =p->outPutWaveH;
+    Spec.outPutLayer =0;
+    Spec.flatDimension=1; //for Y projection
+    result = ProjectSpecFrames (pSpec);
+    if (result){
+        p->result = result;
+#ifdef NO_IGOR_ERR
+        return (0);
+#else
+        return (result + FIRST_XOP_ERR);
+#endif
+    }else{
+        p->result = (0);
+        return (0);
+    }
 }
 
 /*****************************************************************************************************************/
 // Gets a Z slice from a 3D wave and puts it a pre-existing 2D wave of the right dimensions
-extern int ProjectZSlice (ProjectSliceParamsPtr p){
-	int result;
-	// fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
-	ProjectSpecFramesParams Spec;
-	ProjectSpecFramesParamsPtr pSpec = &Spec;
-	Spec.inPutWaveH = p->inPutWaveH;
-	Spec.inPutStartLayer = p->slice;
-	Spec.inPutEndLayer=p->slice;
-	Spec.outPutWaveH =p->outPutWaveH;
-	Spec.outPutLayer =0;
-	Spec.flatDimension=2; //for Z projection
-	result = ProjectSpecFrames (pSpec);
-	p->result= result;
-	return result;
+extern "C" int ProjectZSlice (ProjectSliceParamsPtr p){
+    int result;
+    // fill ProjectSpecFramesParams structrure and call ProjectSpecFrames
+    ProjectSpecFramesParams Spec;
+    ProjectSpecFramesParamsPtr pSpec = &Spec;
+    Spec.inPutWaveH = p->inPutWaveH;
+    Spec.inPutStartLayer = p->slice;
+    Spec.inPutEndLayer=p->slice;
+    Spec.outPutWaveH =p->outPutWaveH;
+    Spec.outPutLayer =0;
+    Spec.flatDimension=2; //for Z projection
+    result = ProjectSpecFrames (pSpec);
+    if (result){
+        p->result = result;
+#ifdef NO_IGOR_ERR
+        return (0);
+#else
+        return (result + FIRST_XOP_ERR);
+#endif
+    }else{
+        p->result = (0);
+        return (0);
+    }
 }

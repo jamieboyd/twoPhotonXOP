@@ -1,26 +1,11 @@
 #include "twoPhoton.h"
-/***********************************************************************************************************************
-Code for Kalman averaging
-Last Modified 2015/06/13 by Jamie Boyd
-***********************************************************************************************************************/
-// Structure to pass data to each KalmanThread
-// Last Modified Feb 21 2010 by Jamie Boyd
-typedef struct KalmanThreadParams{
-	int inPutWaveType;
-	char* inPutDataStartPtr;
-	char* outPutDataStartPtr;
-	CountInt startLayer;
-	CountInt outPutLayer;
-	CountInt xSize;
-	CountInt ySize;
-	CountInt zSize;
-	float multiplier;
-	UInt8 ti; // number of this thread, starting from 0
-	UInt8 tN; // total number of threads
-} KalmanThreadParams, *KalmanThreadParamsPtr;
+/* ---------------------------------------------Kalman----------------------------------------------------------
+ Code for Kalman averaging of frames in a 3d wave, 2d wave, or a list of waves
+ Last Modified 2025/06/23 by Jamie Boyd
+ ---------------------------------------------------------------------------------------------------------------*/
 
-/****************************************************************************************************************
- The following template is used to handle any one of the 8 types of wave data, for any of the three Kalman averaging functions for 3D waves
+/* The following template is used to handle any one of the 8 types of wave data, for any of the three Kalman averaging functions
+ for 3D waves
  Last modified 2014/01/28 by Jamie Boyd */
 template <typename T> int KalmanT(T *srcWaveStart, T *destWaveStart, CountInt pixPerThread, CountInt pixToNextFrame, CountInt numLayers, float multiplier) {
 	T* destWaveEnd = destWaveStart + pixPerThread;	// End of the output layer we are putting the average into
@@ -83,11 +68,27 @@ template <typename T> int KalmanT(T *srcWaveStart, T *destWaveStart, CountInt pi
 	return 0;
 }
 
-/**********************************************************************************************************************
-Each thread to average a range of pixels in a 3D stack starts with this function
-Last Modified 2013/07/16 by Jamie Boyd */
-void* KalmanThread (void* threadarg){
 
+/* Structure to pass data to each KalmanThread
+ Last Modified Feb 21 2010 by Jamie Boyd */
+typedef struct KalmanThreadParams{
+    int inPutWaveType;
+    char* inPutDataStartPtr;
+    char* outPutDataStartPtr;
+    CountInt startLayer;
+    CountInt outPutLayer;
+    CountInt xSize;
+    CountInt ySize;
+    CountInt zSize;
+    float multiplier;
+    UInt8 ti; // number of this thread, starting from 0
+    UInt8 tN; // total number of threads
+} KalmanThreadParams, *KalmanThreadParamsPtr;
+
+
+/* Each thread to do Kalman averaging starts with this function
+ Last Modified 2013/07/16 by Jamie Boyd */
+void* KalmanThread (void* threadarg){
 	struct KalmanThreadParams* p;
 	p = (struct KalmanThreadParams*) threadarg;
 	CountInt xSize= p->xSize;
@@ -137,22 +138,21 @@ void* KalmanThread (void* threadarg){
     return 0;
 }
 
-/************************************************************************************************************
-Does Kalman averaging across all layers in a 3D wave and places results in a new 2D wave
-Last Modified 2015/06/18 by Jamie Boyd 
-KalmanAllFramesParams 
-double overWrite;	//0 to give errors when wave already exists. non-zero to overwrite existing wave without warning.
-double multiplier;	// Multiplier for,e.g., 16 bit waves containing less than 16 bits of data
-Handle outPutPath;	// A handle to a string containing path to output wave we want to make
-waveHndl inPutWaveH;	// handle to a 3D input wave
-result                                  0 for success, error code for failure */
-
+/* KalmanAllFrames XOP entry function
+ Does Kalman averaging across all layers in a 3D wave and places results in a new 2D wave
+ KalmanAllFramesParams
+ waveHndl inPutWaveH    handle to a 3D input wave
+ Handle outPutPath      A handle to a string containing path to output wave we want to make
+ double multiplier      Multiplier for,e.g., 16 bit waves containing less than 16 bits of data
+ double overWrite       0 to give errors when wave already exists. non-zero to overwrite existing wave without warning.
+ result                 0 for success, error code for failure
+Last Modified 2015/06/18 by Jamie Boyd  */
 extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
 	int result = 0;	// The error returned from various Wavemetrics functions
 	waveHndl inPutWaveH = NULL, outPutWaveH = NULL;	// Handles to the input and output waves
     int inPutWaveType;	// Wavemetrics numeric code for data type of wave
 	int inPutDimensions;		// The number of dimensions used in the input wave
-	CountInt inPutOffset, outPutOffset; //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
+    CountInt inPutOffset, outPutOffset; //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
 	CountInt inPutDimensionSizes[MAX_DIMENSIONS+1];	// An array used to hold the sizes of each dimension of the input wave
 	UInt16 outPutPathLen; //Length of the path to the target folder (output path:wave name)
 	DataFolderHandle inPutDFHandle, outPutDFHandle;	// Handle to the datafolder where we will put the output wave
@@ -164,6 +164,8 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
 	float multiplier = (float)(p->multiplier);	// multiplier for integer waves containing less than their full range of data
 	CountInt zSize;
 	UInt8 iThread, nThreads;
+    KalmanThreadParamsPtr paramArrayPtr = NULL;
+    pthread_t* threadsPtr = NULL;
     try {
 		// Get handle to input wave.
 		inPutWaveH = p ->inPutWaveH;
@@ -177,7 +179,7 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
 		if (inPutDimensions != 3)
 			throw result = INPUTNEEDS_3D_WAVE;
 		// Save z Size as we will be resizing dimensions array
-		zSize = inPutDimensionSizes [2];
+		zSize = inPutDimensionSizes [LAYERS];
 		// If outPutPath is empty string, we are overwriting existing wave
 		outPutPathLen = WMGetHandleSize (p->outPutPath);
 		if (outPutPathLen == 0){
@@ -216,8 +218,23 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
 			if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset)) throw result = WAVEERROR_NOS;
 			outPutDataStartPtr =  (char*)(*outPutWaveH) + outPutOffset;
 		}
-    // catch error before starting threads
+        // get ready for multiprocessor initialization
+        if (zSize < gNumProcessors){
+            nThreads =zSize;
+        }else{
+            nThreads = gNumProcessors;
+        }
+        // make array of parameter structures
+        paramArrayPtr = (KalmanThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanThreadParams));
+        if (paramArrayPtr == NULL) throw result = MEMFAIL;
+        // make an array of pthread_t
+        threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == NULL) throw result = MEMFAIL;
+        // catch error before starting threads
 	}catch (int result){
+        if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
+        if (threadsPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
+        WMDisposeHandle(p->outPutPath);  // dispose passed in string paramater
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
 		return (0);
@@ -225,10 +242,7 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
         return (result);
 #endif
 	}
-    // multiprocessor initialization
-    // make an array of parameter structures
-    nThreads =num_processors();
-    KalmanThreadParamsPtr paramArrayPtr= (KalmanThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanThreadParams));
+    // fill paramater array
     for (iThread = 0; iThread < nThreads; iThread++){
         paramArrayPtr[iThread].inPutWaveType = inPutWaveType;
         paramArrayPtr[iThread].inPutDataStartPtr = inPutDataStartPtr;
@@ -242,8 +256,6 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
         paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
         paramArrayPtr[iThread].tN =nThreads; // total number of threads
     }
-    // make an array of pthread_t
-    pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, KalmanThread, (void *) &paramArrayPtr[iThread]);
@@ -252,32 +264,33 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_join (threadsPtr[iThread], NULL);
     }
-    // free memory for pThreads Array
-    WMDisposePtr ((Ptr)threadsPtr);
-    // Free paramaterArray memory
-    WMDisposePtr ((Ptr)paramArrayPtr);
+    WMDisposePtr ((Ptr)threadsPtr);      // free memory for pThreads Array
+    WMDisposePtr ((Ptr)paramArrayPtr);  // Free paramaterArray memory
+    WMDisposeHandle(p->outPutPath);    // dispose passed in string paramater
     if (isOverWriting){	//then collapsing a 3D wave to 2 D
         inPutDimensionSizes [0] = -1;
         inPutDimensionSizes [1] = -1;
         inPutDimensionSizes [2] = 0;
         inPutDimensionSizes [3] = 0;
-        result = MDChangeWave (outPutWaveH, -1, inPutDimensionSizes);
+        MDChangeWave (outPutWaveH, -1, inPutDimensionSizes);
     }
-    WaveHandleModified(outPutWaveH);			// Inform Igor that we have changed output wave
+    // Inform Igor that we have changed output wave
+    WaveHandleModified(outPutWaveH);
     p -> result = (0);
     return (0);
 }
 
-/****************************************************************************************************************
-Averages a specified range of layers of the input wave into a specified layer of the output wave
-Last Modified 2014/02/13 by Jamie Boyd
-KalmanSpecFramesParams
-double multiplier;	// Multiplier for 16 bit waves containing less than 16 bits of data
-double outPutLayer;	// layer of output wave to modify
-waveHndl outPutWaveH;//handle to output wave
-double endLayer;	// end of lyaers to average
-double startLayer;	// start of layers to average for input wave
-waveHndl inPutWaveH;// handle to input wave */
+/* KalmanSpecFrames XOP entry function
+ Averages a specified range of layers of the input wave into a specified layer of the output wave
+ KalmanSpecFramesParams
+ inPutWaveH          handle to input wave
+ startLayer          start of layers to average for input wave
+ endLayer            end of layers to average
+ outPutWaveH         handle to output wave
+ outPutLayer         layer of output wave to receive results of averaging
+ multiplier          Multiplier, as for 16 bit waves containing less than 16 bits of data
+ result              0 or error code
+ Last Modified 2014/02/13 by Jamie Boyd */
 extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
 	int result = 0;	// The error returned from various Wavemetrics functions
 	waveHndl inPutWaveH = NIL, outPutWaveH = NIL;	// Handles to the input and output waves
@@ -290,8 +303,10 @@ extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
 	CountInt pointsPerLayer;	// The number of points in a layer, needed information for iterating through a layer
 	char *inPutDataStartPtr, *outPutDataStartPtr;
 	float multiplier = (float)(p->multiplier);	// multiplier for integer waves containing less than their full range of data
-	UInt8 iThread, nThreads;
-    
+    UInt8 iThread, nThreads;
+    KalmanThreadParamsPtr paramArrayPtr = NULL;
+    pthread_t* threadsPtr = NULL;
+    // try/catch before starting threads
 	try {
 		// Get handles to input wave and kernel. Make sure both waves exist.
 		inPutWaveH = p ->inPutWaveH;	// Get Handle to the input Wave and make sure it exists
@@ -334,7 +349,18 @@ extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
 		inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
 		if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset))throw result = WAVEERROR_NOS;
 		outPutDataStartPtr =  (char*)(*outPutWaveH) + outPutOffset;
+        // multiprocessor initialization
+        nThreads =gNumProcessors;
+        if (inPutDimensionSizes [LAYERS] < nThreads) nThreads = inPutDimensionSizes [LAYERS];
+        // make an array of parameter structures
+        paramArrayPtr = (KalmanThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanThreadParams));
+        if (paramArrayPtr == NULL) throw result = MEMFAIL;
+        // make an array of pthread_t
+        threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == NULL) throw result = MEMFAIL;
 	}catch (int result){
+        if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
+        if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
     return (0);
@@ -342,11 +368,7 @@ extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
     return (result);
 #endif
 	}
-    // multiprocessor initialization
-    // make an array of parameter structures
-    nThreads =gNumProcessors;
-    if (inPutDimensionSizes [2] < nThreads) nThreads = inPutDimensionSizes [2];
-    KalmanThreadParamsPtr paramArrayPtr= (KalmanThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanThreadParams));
+    // fill paramater array
     for (iThread = 0; iThread < nThreads; iThread++){
         paramArrayPtr[iThread].inPutWaveType = inPutWaveType;
         paramArrayPtr[iThread].inPutDataStartPtr = inPutDataStartPtr;
@@ -360,8 +382,6 @@ extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
         paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
         paramArrayPtr[iThread].tN =nThreads; // total number of threads
     }
-    // make an array of pthread_t
-    pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, KalmanThread, (void *) &paramArrayPtr[iThread]);
@@ -370,23 +390,22 @@ extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_join (threadsPtr[iThread], NULL);
     }
-    // free memory for pThreads Array
-    WMDisposePtr ((Ptr)threadsPtr);
-    // Free paramaterArray memory
-    WMDisposePtr ((Ptr)paramArrayPtr);
-    // Inform Igor that we have changed the output wave.
-    WaveHandleModified(outPutWaveH);
-    p -> result = (0);				// XFUNC error code
+    WMDisposePtr ((Ptr)threadsPtr);         // free memory for pThreads Array
+    WMDisposePtr ((Ptr)paramArrayPtr);      // Free paramaterArray memory
+    WaveHandleModified(outPutWaveH);        // Inform Igor that we have changed the output wave.
+    p -> result = (0);
     return (0);
 }
 
-/*****************************************************************************************************************
-Collapses a 3D input wave into a single 2D frame. You can get the same result with KalmanAllFrames by using "" as outPut String
-Last Modified 2025/06/18 by Jamie Boyd
-KalmanWaveToFrameParams
-double multiplier;	// Multiplier for 16 bit waves containing less than 16 bits of data
-waveHndl inPutWaveH;// handle to input wave */
 
+/* KalmanWaveToFrame XOP entry function
+ Collapses a 3D input wave into a single 2D frame. You can get the same result with KalmanAllFrames by
+ using "" as outPut String
+ KalmanWaveToFrameParams
+ inPutWaveH     handle to input wave
+ multiplier     Multiplier, as for  for 16 bit waves containing less than 16 bits of data
+ result         0 or error code
+ Last Modified: 2025/06/18 by Jamie Boyd */
 int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
 	int result=0;	// The error returned from various Wavemetrics functions
 	waveHndl inPutWaveH = NIL;		// handle to the input wave
@@ -397,8 +416,10 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
 	char *inPutDataStartPtr;
 	float multiplier = (float)(p->multiplier);
 	CountInt zSize;
+    // threading
 	UInt8 iThread, nThreads;
-
+    KalmanThreadParamsPtr paramArrayPtr = NULL;
+    pthread_t* threadsPtr = NULL;
 	try {
 		// Get handle to input wave. Make sure input wave exists.
 		inPutWaveH = p->inPutWaveH;
@@ -415,7 +436,17 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
         //Get data offset for the wave
 		if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) throw result = WAVEERROR_NOS;
 		inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
+        // for multiprocessor initialization
+        nThreads = gNumProcessors;
+        // make an array of parameter structures
+        paramArrayPtr = (KalmanThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanThreadParams));
+        if (paramArrayPtr == NULL) throw result = MEMFAIL;
+        // make an array of pthread_t
+        threadsPtr = (pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == NULL) throw result = MEMFAIL;
 	}catch (int result){
+        if (paramArrayPtr != NULL)  WMDisposePtr ((Ptr)paramArrayPtr);
+        if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
     return (0);
@@ -423,10 +454,7 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
     return (result);
 #endif
 	}
-    // multiprocessor initialization
-    // make an array of parameter structures
-    nThreads =gNumProcessors;
-    KalmanThreadParamsPtr paramArrayPtr= (KalmanThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanThreadParams));
+    // fill pramaters array
     for (iThread = 0; iThread < nThreads; iThread++){
         paramArrayPtr[iThread].inPutWaveType = inPutWaveType;
         paramArrayPtr[iThread].inPutDataStartPtr = inPutDataStartPtr;
@@ -440,8 +468,6 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
         paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
         paramArrayPtr[iThread].tN =nThreads; // total number of threads
     }
-    // make an array of pthread_t
-    pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, KalmanThread, (void *) &paramArrayPtr[iThread]);
@@ -450,26 +476,23 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_join (threadsPtr[iThread], NULL);
     }
-    // free memory for pThreads Array
-    WMDisposePtr ((Ptr)threadsPtr);
-    // Free paramaterArray memory
-    WMDisposePtr ((Ptr)paramArrayPtr);
+    WMDisposePtr ((Ptr)threadsPtr);     // free memory for pThreads Array
+    WMDisposePtr ((Ptr)paramArrayPtr);  // Free paramaterArray memory
 	// Redimension wave
 	inPutDimensionSizes [0] = -1;
 	inPutDimensionSizes [1] = -1;
 	inPutDimensionSizes [2] = 0;
 	inPutDimensionSizes [3] = 0;
-	result = MDChangeWave (inPutWaveH, -1, inPutDimensionSizes); // should never give error, and nothing to do if it does
-	WaveHandleModified(inPutWaveH);			// Inform Igor that we have changed the input wave.
+	MDChangeWave (inPutWaveH, -1, inPutDimensionSizes);
+	WaveHandleModified(inPutWaveH);     // Inform Igor that we have changed the input wave.
 	p -> result = (0);
 	return (0);
 }
 
-/****************************************************************************************************************
-Template for handling all data types for KalmanList function 
+
+/* Template for handling all data types for KalmanList function
 Last Modified 2013/07/16 by Jamie Boyd  */
-template <typename T> int KalmanListT (T** srcWaveStarts, T* destWaveStart, UInt16 nWaves, CountInt startPos, CountInt endPos, float multiplier)
-{
+template <typename T> int KalmanListT (T** srcWaveStarts, T* destWaveStart, UInt16 nWaves, CountInt startPos, CountInt endPos, float multiplier) {
 	UInt16 iWave;
 	CountInt iPos;
 	T** srcWave;
@@ -526,25 +549,23 @@ template <typename T> int KalmanListT (T** srcWaveStarts, T* destWaveStart, UInt
 }
 
 
-/********************************************************************************************************************
-Structure to pass data to each KalmanListThread
+/* Structure to pass data to each KalmanListThread
 Last Modified 2013/07/16 by Jamie Boyd */
 typedef struct KalmanListThreadParams{
-	int inPutWaveType;
-	Ptr* inPutDataStartPtrs;
-	char* outPutDataStartPtr;
-	UInt16 nWaves;
-	CountInt nPnts;
-	float multiplier;
-	UInt8 ti; // number of this thread, starting from 0
-	UInt8 tN; // total number of threads
+    int inPutWaveType;
+    Ptr* inPutDataStartsPtr;
+    char* outPutDataStartPtr;
+    UInt16 nWaves;
+    CountInt nPnts;
+    float multiplier;
+    UInt8 ti; // number of this thread, starting from 0
+    UInt8 tN; // total number of threads
 } KalmanListThreadParams, *KalmanListThreadParamsPtr;
 
-/*********************************************************************************************************************
-Each thread to average a list of waves starts with this function
+
+/* Each thread to average a list of waves starts with this function
 Last Modified 2013/07/16 by Jamie Boyd */
 void* KalmanListThread (void* threadarg){
-
 	struct KalmanListThreadParams* p;
 	p = (struct KalmanListThreadParams*) threadarg;
 	CountInt nPnts= p->nPnts;
@@ -556,27 +577,27 @@ void* KalmanListThread (void* threadarg){
 	if (ti == (tN - 1)) pntsPerThread += (nPnts % tN); // last thread gets any extra points
 	switch (p->inPutWaveType) {
 	case NT_I8:
-		KalmanListT ((char**)p->inPutDataStartPtrs, (char*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+		KalmanListT ((char**)p->inPutDataStartsPtr, (char*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
 		break;
 	case (NT_I8 | NT_UNSIGNED):
-		KalmanListT ((unsigned char**)p->inPutDataStartPtrs, (unsigned char*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);				break;
+		KalmanListT ((unsigned char**)p->inPutDataStartsPtr, (unsigned char*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);				break;
 	case NT_I16:
-		KalmanListT ((short**)p->inPutDataStartPtrs, (short*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+		KalmanListT ((short**)p->inPutDataStartsPtr, (short*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
 		break;
 	case (NT_I16 | NT_UNSIGNED):
-		KalmanListT ((unsigned short**)p->inPutDataStartPtrs, (unsigned short*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+		KalmanListT ((unsigned short**)p->inPutDataStartsPtr, (unsigned short*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
 		break;
 	case NT_I32:
-		KalmanListT ((long**)p->inPutDataStartPtrs, (long*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+		KalmanListT ((long**)p->inPutDataStartsPtr, (long*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
 		break;
 	case (NT_I32| NT_UNSIGNED):
-		KalmanListT ((unsigned long**)p->inPutDataStartPtrs, (unsigned long*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+		KalmanListT ((unsigned long**)p->inPutDataStartsPtr, (unsigned long*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
 		break;
 	case NT_FP32:
-		KalmanListT ((float**)p->inPutDataStartPtrs, (float*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+		KalmanListT ((float**)p->inPutDataStartsPtr, (float*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
 		break;
 	case NT_FP64:
-		KalmanListT ((double**)p->inPutDataStartPtrs, (double*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+		KalmanListT ((double**)p->inPutDataStartsPtr, (double*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
 		break;
 	default:	// Unknown data type - possible in a future version of Igor.
 		throw NT_FNOT_AVAIL;
@@ -586,16 +607,16 @@ void* KalmanListThread (void* threadarg){
 }
 
 
-/*****************************************************************************************************************
-Averages a semicolon-separated list of waves. Each wave must have same data type and same dimensions. This is not used by the twoPhoton program
- so we print some more information in the error cases
-Last Modified 2014/02/13 by Jamie Boyd
-KalmanListParams
-double overwrite;	//0 to give errors when wave already exists. non-zero to overwrite existing wave.
-double multiplier; // Multiplier for 16 bit waves containing less than 16 bits of data
-Handle outPutPath;	// path and wavename of output wave
-Handle inPutList;	//semicolon separated list of input waves, with paths */
-
+/* KalmanList XOP entry function
+ Averages a semicolon-separated list of waves. Each wave must have same data type and same dimensions. This is not used by the
+ twoPhoton acquisition code so we print some more information in the error cases with XOPNotice
+ KalmanListParams
+ inPutList          semicolon separated list of input waves, with paths
+ outPutPath         path and wavename of output wave
+ multiplier         Multiplier for 16 bit waves containing less than 16 bits of data
+ overwrite          0 to give errors when wave already exists. non-zero to overwrite existing wave.
+ result             0 for success, else error code
+ Last Modified 2014/02/13 by Jamie Boyd */
 extern "C" int KalmanList (KalmanListParamsPtr p) {
 	int result = 0;	// The error returned from various Wavemetrics functions
 	waveHndl outPutWaveH = NULL; // handle to output wave
@@ -607,7 +628,7 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
     int inPutDimensions;	// number of numDimensions in input and output waves
 	CountInt inPutDimensionSizes[MAX_DIMENSIONS+1];	// an array used to hold the width, height, layers, and chunk sizes
 	char* outPutDataStartPtr; // Pointer to start of output wave
-	Ptr* inPutDataStartPtrs; // Pointer to an array of pointers for starts of input data
+	Ptr* inPutDataStartsPtr = nullptr; // Pointer to an array of pointers for starts of input data
 	UInt8 overWrite = p->overwrite; // if it is O.K. to overwrite an existing wave
 	UInt8 isOverWriting = 0; // 0 if using a separate output wave, 1 for overwriting first wave in list with results
 	float multiplier = p->multiplier;
@@ -615,6 +636,8 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
 	CountInt waveOffset;	//offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
 	CountInt nPnts;
     UInt8 iThread, nThreads;
+    KalmanListThreadParamsPtr paramArrayPtr = nullptr;
+    pthread_t* threadsPtr = nullptr;
 	try {
 		// Check that input string exists
 		if (WMGetHandleSize (p->inPutList) == 0) throw result = NON_EXISTENT_WAVE;
@@ -630,7 +653,9 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
 		// parse input list into an array of waveHandles
 		handleList = ParseWaveListPaths (p->inPutList, &numWaves);
 		// check that dimension sizes and wave types (no text waves) are the same for each wave in array
+#ifdef IPARSEWAVE_INF0
 		char XOPbuffer [256]; // string used for XOPAlert if we find a bad wave
+#endif
 		WVNAME tInPutWaveName; // temp wave name  for each wave in array
 		DFPATH tInPutPath; // temp datafolder path for each wave in array
 		DataFolderHandle tInPutDFHandle;
@@ -639,14 +664,18 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
 		CountInt tInPutDimensionSizes[MAX_DIMENSIONS+1];	// temp width, height, layers, and chunk sizes for each wave in array
 		// get info for first wave in list
 		if (handleList [0] == NULL){
+#ifdef IPARSEWAVE_INF0
 			sprintf(XOPbuffer, "The specification for wave %d in the input list was bad.\r", 0);
 			XOPNotice (XOPbuffer);
+#endif
 			throw result = BADWAVEINLIST;
 		}
 		inPutWaveType = WaveType(handleList[0]);
 		if (inPutWaveType==TEXT_WAVE_TYPE){
+#ifdef IPARSEWAVE_INF0
 			sprintf(XOPbuffer, "Wave %d in the input list was a text wave.\r", 0);
 			XOPNotice (XOPbuffer);
+#endif
 			throw result = NOTEXTWAVES;
 		}
 		// Get wave dimensions and calculate number of points
@@ -667,30 +696,38 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
 			int id;
 			// check that handle is good
 			if (handleList [iw] == NULL){
+#ifdef IPARSEWAVE_INF0
 				sprintf(XOPbuffer, "The specification for wave %d in the input list was bad.\r", iw);
 				XOPNotice (XOPbuffer);
+#endif
 				throw result = BADWAVEINLIST;
 			}
 			// check input type
 			tInPutWaveType = WaveType(handleList[iw]);
 			if (tInPutWaveType==TEXT_WAVE_TYPE){
+#ifdef IPARSEWAVE_INF0
 				sprintf(XOPbuffer, "Wave %d in the input list was a text wave.\r", iw);
 				XOPNotice (XOPbuffer);
+#endif
 				throw result = NOTEXTWAVES;
 			}
 			if (tInPutWaveType != inPutWaveType) throw result = NOTSAMEWAVETYPE;
 			// check number of dimensions
 			if (MDGetWaveDimensions(handleList[iw], &tInPutDimensions, tInPutDimensionSizes))throw result = WAVEERROR_NOS;
 			if (tInPutDimensions != inPutDimensions){
+#ifdef IPARSEWAVE_INF0
 				sprintf(XOPbuffer, "The number of dimensions of wave %d in the input list did not match the number of dimenisons of the first wave in the list.\r", iw);
 				XOPNotice (XOPbuffer);
+#endif
 				throw result = NOTSAMEDIMSIZE;
 			}
 			// check sizes of each dimension
 			for (id=0; id < MAX_DIMENSIONS; id +=1){
 				if (tInPutDimensionSizes [id] != inPutDimensionSizes [id]){
+#ifdef IPARSEWAVE_INF0
 					sprintf(XOPbuffer, "The %d dimension size of wave %d in the input list did not match the corresponding dimensions size of the first wave in the list.\r", id, iw);
 					XOPNotice (XOPbuffer);
+#endif
 					throw result = NOTSAMEDIMSIZE;
 				}
 			}
@@ -699,8 +736,10 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
 			GetWavesDataFolder (handleList[iw], &tInPutDFHandle);
 			GetDataFolderNameOrPath (tInPutDFHandle, 1, tInPutPath);
 			if ((!(CmpStr (tInPutPath, outPutPath))) && (!(CmpStr (tInPutWaveName, outPutWaveName)))){
+#ifdef IPARSEWAVE_INF0
 				sprintf(XOPbuffer, "The output wave specified would overwrite the %d wave in the input list.\r", iw);
 				XOPNotice (XOPbuffer);
+#endif
 				throw result = OVERWRITEALERT;
 			}
 		}
@@ -711,32 +750,39 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
 			if ( MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimensionSizes, inPutWaveType, overWrite)) throw result = WAVEERROR_NOS;
 		}
         // get offsets to data for input waves
-		inPutDataStartPtrs = (Ptr*) WMNewPtr (numWaves * sizeof (Ptr));
+        inPutDataStartsPtr = (Ptr*) WMNewPtr (numWaves * sizeof (Ptr));
 		for (int iw = 0; iw < numWaves; iw++){
 			if (MDAccessNumericWaveData(handleList[iw], kMDWaveAccessMode0, &waveOffset)) throw result = WAVEERROR_NOS;
-			*(inPutDataStartPtrs + iw) = (char*)(*handleList[iw]) + waveOffset;
+            *(inPutDataStartsPtr + iw) = (char*)(*handleList[iw]) + waveOffset;
 		}
 		// get offset for outPut wave
 		if (isOverWriting) {
-			outPutDataStartPtr = *inPutDataStartPtrs;
+            outPutDataStartPtr = *inPutDataStartsPtr;
 		}else{
 			if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &waveOffset)) throw result = WAVEERROR_NOS;
 			outPutDataStartPtr =  (char*)(*outPutWaveH) + waveOffset;
 		}
+        // multiprocessor init
+        nThreads = gNumProcessors;
+        paramArrayPtr = (KalmanListThreadParamsPtr)WMNewPtr(nThreads * sizeof(KalmanListThreadParams));
+        if (paramArrayPtr == nullptr) throw result = MEMFAIL;
+        // make an array of pthread_t
+        threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == nullptr) throw result = MEMFAIL;
 	}catch (int result){
-        // free pointer for data starts
-		WMDisposePtr ((char*)inPutDataStartPtrs);
+        if (threadsPtr != nullptr) WMDisposePtr((Ptr)threadsPtr);
+        if (paramArrayPtr != nullptr) WMDisposePtr ((Ptr)paramArrayPtr);
+		if (inPutDataStartsPtr != nullptr) WMDisposePtr ((Ptr)inPutDataStartsPtr);
+        WMDisposeHandle(p->inPutList);
+        WMDisposeHandle(p->outPutPath);
 		// set result
 		p -> result = (result - FIRST_XOP_ERR);	// XFUNC error code
 		return (result);
 	}
-	/* multiprocessor init
-	Make an array of parameter structures */
-	nThreads = gNumProcessors;
-	KalmanListThreadParamsPtr paramArrayPtr= (KalmanListThreadParamsPtr)WMNewPtr(nThreads * sizeof(KalmanListThreadParams));
+    // fill threadArray
 	for (iThread = 0; iThread < nThreads; iThread++){
 		paramArrayPtr[iThread].inPutWaveType = inPutWaveType;
-		paramArrayPtr[iThread].inPutDataStartPtrs = inPutDataStartPtrs;
+        paramArrayPtr[iThread].inPutDataStartsPtr = inPutDataStartsPtr;
 		paramArrayPtr[iThread].outPutDataStartPtr = outPutDataStartPtr;
 		paramArrayPtr[iThread].nWaves=numWaves;
 		paramArrayPtr[iThread].nPnts = nPnts;
@@ -744,8 +790,7 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
 		paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
 		paramArrayPtr[iThread].tN =nThreads; // total number of threads
 	}
-    // make an array of pthread_t
-	pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+    
 	// create the threads
 	for (iThread = 0; iThread < nThreads; iThread++){
 		pthread_create (&threadsPtr[iThread], NULL, KalmanListThread, (void *) &paramArrayPtr[iThread]);
@@ -754,10 +799,11 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
 	for (iThread = 0; iThread < nThreads; iThread++){
 		pthread_join (threadsPtr[iThread], NULL);
 	}
-	// free memory for pThreads Array
-	WMDisposePtr ((Ptr)threadsPtr);
-    // Free paramaterArray memory
-	WMDisposePtr ((Ptr)paramArrayPtr);
+	WMDisposePtr ((Ptr)threadsPtr);         // free memory for pThreads Array
+	WMDisposePtr ((Ptr)paramArrayPtr);      // Free paramaterArray memory
+    WMDisposePtr ((Ptr)inPutDataStartsPtr); // free pointers to data starts
+    WMDisposeHandle(p->inPutList);          // free inPutList input string
+    WMDisposeHandle(p->outPutPath);         // free outPutPath input string
 	// Inform Igor that we have changed the wave.
 	WaveHandleModified(outPutWaveH);
 	// set result
@@ -765,22 +811,11 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
 	return (0);
 }
 
-/********************************************************************************************************************/
-typedef struct KalmanNextThreadParams{
-	int inPutWaveType;
-	char* inPutDataStartPtr;
-	char* outPutDataStartPtr;
-	CountInt nPnts;
-	UInt16 iKal;
-	UInt8 ti; // number of this thread, starting from 0
-	UInt8 tN; // total number of threads
-} KalmanNextThreadParams, *KalmanNextThreadParamsPtr;
 
-/****************************************************************************************************************
-Template for doing sequential Kalman averaging, src wave is the new wave, and dest wave is the old wave already averaged iKal times
-Last Modified 2014/01/28 by Jamie Boyd */
-template <typename T> void KalmanNextT (T* srcWaveStart, T* destWaveStart, CountInt nPoints, UInt16 iKal)
-{
+/* Template for doing sequential Kalman averaging, src wave is the new wave,
+ dest wave is the old wave already averaged iKal times
+ Last Modified 2014/01/28 by Jamie Boyd */
+template <typename T> void KalmanNextT (T* srcWaveStart, T* destWaveStart, CountInt nPoints, UInt16 iKal) {
 	T* srcWave;
 	T* destWave;
 	T* destWaveEnd = destWaveStart + nPoints;
@@ -793,11 +828,23 @@ template <typename T> void KalmanNextT (T* srcWaveStart, T* destWaveStart, Count
 	}
 }
 
-/*********************************************************************************************************************
- Each thread to do sequential Kalmaning starts with this function
+
+/* Structure to pass data to each KalmanNext Thread
+ Last Modified: 2014/01/28 by Jamie Boyd */
+typedef struct KalmanNextThreadParams{
+    int inPutWaveType;
+    char* inPutDataStartPtr;
+    char* outPutDataStartPtr;
+    CountInt nPnts;
+    UInt16 iKal;
+    UInt8 ti; // number of this thread, starting from 0
+    UInt8 tN; // total number of threads
+} KalmanNextThreadParams, *KalmanNextThreadParamsPtr;
+
+
+/* Each thread to do sequential Kalmaning starts with this function
  Last Modified 2014/01/29 by Jamie Boyd */
 void* KalmanNextThread (void* threadarg){
-    
 	struct KalmanNextThreadParams* p;
 	p = (struct KalmanNextThreadParams*) threadarg;
 	CountInt nPnts= p->nPnts;
@@ -831,18 +878,19 @@ void* KalmanNextThread (void* threadarg){
         case NT_FP64:
             KalmanNextT ((double*)p->inPutDataStartPtr + startPos, (double*)p->outPutDataStartPtr + startPos, pntsPerThread, p->iKal);
             break;
-        default:	// Unknown data type - possible in a future version of Igor.
-            throw NT_FNOT_AVAIL;
-            break;
 	}
-	return 0;
+	return nullptr;
 }
 
 
-/*****************************************************************************************************************
+/* KalmanNext XOP entry function
  Averages a wave into an already averaged wave. Both waves must have same data type and same dimensions.
- Last Modified 2014/01/28 by Jamie Boyd
-*/
+ KalmanNextParams:
+ inPutWaveH     handle to input wave
+ outPutWaveH    handle to output wave
+ iKal           index of wave are we adding
+ result         0 or error code
+ Last Modified 2014/01/28 by Jamie Boyd */
 extern "C" int KalmanNext (KalmanNextParamsPtr p) {
 	int result = 0;	// The error returned from various Wavemetrics functions
     waveHndl outPutWaveH = NULL; // handle to output wave
@@ -854,9 +902,11 @@ extern "C" int KalmanNext (KalmanNextParamsPtr p) {
     char* outPutDataStartPtr; // Pointer to start of output wave
 	char* inPutDataStartPtr;
 	CountInt inPutOffset, outPutOffset;	//offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
-	CountInt nPnts =1;
+	CountInt nPnts = 1;
 	UInt16 iKal;
     UInt8 iThread, nThreads;
+    KalmanNextThreadParamsPtr paramArrayPtr = NULL;
+    pthread_t* threadsPtr = NULL;
 	try {
 		// get iKal
         iKal = (UInt16)p->iKal;
@@ -880,7 +930,7 @@ extern "C" int KalmanNext (KalmanNextParamsPtr p) {
         if (inPutWaveType != outPutWaveType) throw result = NOTSAMEDIMSIZE;
         if (inPutDimensions != outPutDimensions) throw result = NOTSAMEDIMSIZE;
         // check sizes of each dimension, and calculate total number of points as well
-        UInt8 id=0;
+        UInt8 id;
         for (id=0; id < inPutDimensions; id +=1){
             if (inPutDimensionSizes [id] != outPutDimensionSizes [id]) throw result = NOTSAMEDIMSIZE;
             nPnts *= inPutDimensionSizes [id];
@@ -890,18 +940,23 @@ extern "C" int KalmanNext (KalmanNextParamsPtr p) {
 		inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
         if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset)) throw result = WAVEERROR_NOS;
 		outPutDataStartPtr = (char*)(*outPutWaveH) + outPutOffset;
+        // multiprocessor initialization
+        nThreads =gNumProcessors;
+        // make an array of parameter structures
+        paramArrayPtr = (KalmanNextThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanNextThreadParams));
+        // make an array of pthread_t
+        threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     }catch (int result){
+        if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
+        if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
         p -> result = (double)(result - FIRST_XOP_ERR);
-        #ifdef NO_IGOR_ERR
+#ifdef NO_IGOR_ERR
             return (0);
-        #else
+ #else
             return (result);
-        #endif
+#endif
     }
-    // multiprocessor initialization
     // make an array of parameter structures
-    nThreads =gNumProcessors;
-    KalmanNextThreadParamsPtr paramArrayPtr= (KalmanNextThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanNextThreadParams));
     for (int iThread = 0; iThread < nThreads; iThread++){
         paramArrayPtr[iThread].inPutWaveType = inPutWaveType;
         paramArrayPtr[iThread].inPutDataStartPtr = inPutDataStartPtr;
@@ -911,8 +966,6 @@ extern "C" int KalmanNext (KalmanNextParamsPtr p) {
         paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
         paramArrayPtr[iThread].tN =nThreads; // total number of threads
     }
-    // make an array of pthread_t
-    pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, KalmanNextThread, (void *) &paramArrayPtr[iThread]);
@@ -926,7 +979,8 @@ extern "C" int KalmanNext (KalmanNextParamsPtr p) {
     // Free paramaterArray memory
     WMDisposePtr ((Ptr)paramArrayPtr);
 	MDChangeWave (outPutWaveH, -1, outPutDimensionSizes);
-	WaveHandleModified(outPutWaveH);			// Inform Igor that we have changed the input wave.
+    // Inform Igor that we have changed the input wave.
+	WaveHandleModified(outPutWaveH);
 	p -> result = (0);
 	return (0);
 }

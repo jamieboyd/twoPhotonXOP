@@ -1,11 +1,14 @@
 #include "ParseWavePath.h"
+
 /*******************************************************************************************************
 Takes a handle to a string containing either the name of an Igor Wave in the current data folder or the full path 
 to an Igor Wave and copies the data folder path (if one is given) and the wave name into the given strings
-Last Modified 2013/07/16 by Jamie Boyd - return full path to data folder when a relative path was passed in */
+Does NOT allocate memory, it only writes to strings passed into it DFPATH and WVNAME
+Last Modified 2013/07/16 by Jamie Boyd - write full path to data folder when a relative path was passed in */
 void ParseWavePath (Handle fullPath, DFPATH dataFolderName, WVNAME waveName){
-	
-	//char temp[256]; 
+#ifdef IPARSEWAVE_INF0
+    char temp[256];
+#endif
 	// ignore leading and trailing spaces
 	SInt32 startPos, stopPos, pathLen= (SInt32)WMGetHandleSize(fullPath);
 	for (startPos = 0; (*(*fullPath + startPos) == ' ') && (startPos < pathLen); startPos++);
@@ -17,15 +20,19 @@ void ParseWavePath (Handle fullPath, DFPATH dataFolderName, WVNAME waveName){
 	//copy wavename
 	memcpy (waveName, *fullPath + waveNameBreak + 1, (stopPos  - waveNameBreak));
 	waveName [(stopPos - waveNameBreak)] = 0;
-	//sprintf(temp, "Wave Name = %s"CR_STR, waveName); 
-	//XOPNotice (temp);
+#ifdef IPARSEWAVE_INF0
+    sprintf(temp, "Wave Name = %s" CR_STR, waveName);
+	XOPNotice (temp);
+#endif
 	// rest of string is folder path
 	// If count down gets to startPos, then no colon, so no datafolder, just wavename	
 	if (waveNameBreak < startPos){
 		// no data folder so return path to current folder
 		GetDataFolderNameOrPath(NULL, 1, dataFolderName);
-		//sprintf(temp, "current: dataFolder Name = %s"CR_STR, dataFolderName); 
-		//XOPNotice (temp);
+#ifdef IPARSEWAVE_INF0
+        sprintf(temp, "current: dataFolder Name = %s" CR_STR, dataFolderName);
+		XOPNotice (temp);
+#endif
 	}else{ // there is at least one colon, so there is a datafolder
 		   // check for absolute path (starts with root:)
 		if (waveNameBreak - startPos + 1 > 4){
@@ -42,8 +49,10 @@ void ParseWavePath (Handle fullPath, DFPATH dataFolderName, WVNAME waveName){
 			if (CmpStr(rootCompStr, rootStr)==0){ // absolute path from root:
 				memcpy (dataFolderName, *fullPath + startPos, (waveNameBreak + 1 - startPos));
 				dataFolderName [waveNameBreak + 1 - startPos] = 0;
-				//sprintf(temp, "absolute: dataFolder Name = %s"CR_STR, dataFolderName); 
-				//XOPNotice (temp);
+#ifdef IPARSEWAVE_INF0
+				sprintf(temp, "absolute: dataFolder Name = %s" CR_STR, dataFolderName);
+				XOPNotice (temp);
+#endif
 				return;
 			}
 		}// to get to here, we must have relative path from current folder
@@ -51,8 +60,10 @@ void ParseWavePath (Handle fullPath, DFPATH dataFolderName, WVNAME waveName){
 		SInt32 curPathLen, curPathPos, iLevel, pathLevels;
 		DFPATH curPath;
 		GetDataFolderNameOrPath(NULL, 1, curPath);
-		//sprintf(temp, "Current Path= %s"CR_STR, curPath); 
-		//XOPNotice (temp);
+#ifdef IPARSEWAVE_INF0
+		sprintf(temp, "Current Path= %s" CR_STR, curPath);
+		XOPNotice (temp);
+#endif
 		curPathLen = (SInt32)strlen (curPath);
 		// first colon can safely be ignored because root: vs :root: has already been disambiguated
 		if (*(*fullPath + startPos) == ':')
@@ -70,8 +81,10 @@ void ParseWavePath (Handle fullPath, DFPATH dataFolderName, WVNAME waveName){
 			dataFolderName [2] = 'o';
 			dataFolderName [3] = 't';
 			dataFolderName [4] = ':';
-			//sprintf(temp, "Too many colons! dataFolder starts from root"CR_STR); 
-			//XOPNotice (temp);
+#ifdef IPARSEWAVE_INF0
+			sprintf(temp, "Too many colons! dataFolder starts from root" CR_STR);
+			XOPNotice (temp);
+#endif
 			curPathPos = 5;
 		}else{ // start full path from root to wherever the colons take us from the current folder
 			memcpy (dataFolderName, curPath, curPathPos);
@@ -79,18 +92,22 @@ void ParseWavePath (Handle fullPath, DFPATH dataFolderName, WVNAME waveName){
 		// finish the part of the path that is relative to the current folder
 		memcpy (dataFolderName + curPathPos, *fullPath + startPos, (stopPos - startPos +1));
 		dataFolderName [curPathPos + (stopPos - startPos +1)] = 0;
-		//sprintf(temp, "relative: dataFolder Name = %s"CR_STR, dataFolderName); 
-		//XOPNotice (temp);
+#ifdef IPARSEWAVE_INF0
+		sprintf(temp, "relative: dataFolder Name = %s" CR_STR, dataFolderName);
+		XOPNotice (temp);
+#endif
 	}
 }
 
-/*******************************************************************************************************
-Takes a handle to a string containing a semicolon- or comma-separated list of names of Igor waves in the current datafolder
-or full paths to Igor waves and returns a pointer to an array of Wave Handles corresponding to those waves.
-Also sets the variable pointed to by nWavesPtr to the number of waves in the list
-Last Modified 2013/07/16 by Jamie Boyd  */
+/* Takes a handle to a string containing a semicolon- or comma-separated list of names of Igor waves in
+ the current datafolder or full paths to Igor waves and returns an array of pointers to WaveHandles
+ corresponding to those waves. Also sets the variable pointed to by nWavesPtr to the number of waves
+ in the list. It is up to calling function to dispose of the array of pointers to WaveHandles, but
+ NOT the WaveHandles themselves- WaveHandles always belong to Igor.
+ waveHndl* myWaves = ParseWaveListPaths (pathsList, *nWaves)
+ WMDisposePtr((Ptr)myWaves);
+ Last Modified 2025/06/24 by Jamie Boyd  */
 waveHndl* ParseWaveListPaths (Handle pathsList, UInt16* nWavesPtr){
- 
 	SInt32 listLen = (SInt32)WMGetHandleSize (pathsList);
 	// Count semicolons/commas to see how many waves we have.
 	UInt16 nWaves = 1;
@@ -100,7 +117,7 @@ waveHndl* ParseWaveListPaths (Handle pathsList, UInt16* nWavesPtr){
 	for (UInt16 iList =0; iList < listLen -1 ; iList++){
 		if ((*(*pathsList + iList) == ';') || (*(*pathsList + iList) == ',')) nWaves ++;
 	}
-	// make array of waveHandles
+	// make array of pointers to waveHandles
 	waveHndl* handleList = (waveHndl*)WMNewPtr (nWaves * sizeof(waveHndl));
 	// make a handle and 2 strings to pass to parseWavePath
 	Handle aPath=WMNewHandle ((MAXCMDLEN + 1) * sizeof (char));

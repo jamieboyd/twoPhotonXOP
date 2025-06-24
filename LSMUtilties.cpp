@@ -1,26 +1,29 @@
 #include "twoPhoton.h"
 #include "math.h"
 
-/**************************************************************************************************************
-Code specialized for Laser Scanning Microscope data acquisition
-Last Modified 2025/06/18 by Jamie Boyd */
-/**************************************************************************************************************
-Structure to pass data to each SwapEvenThread
-Last Modified 2013/07/15 by Jamie Boyd */
-typedef struct SwapEvenThreadParams{
-    int inPutWaveType;
-    char* dataStartPtr;
-    CountInt numLines;
-    CountInt lineLen;
-    UInt8 ti; // number of this thread, starting from 0
-    UInt8 tN; // total number of threads (255 "should be enough for anyone")
-}SwapEvenThreadParams, *SwapEvenThreadParamsPtr;
+/* ------------------------------LSM Utilities --------------------------------------------------
+utility functions specialized for Laser Scanning Microscope data acquisition
+Last Modified 2025/06/23 by Jamie Boyd
+ -------------------------------------------------------------------------------------------------*/
+ 
+/* --------------------------- GetSetNumProcessors--------------------------------------------
+sanity check function for getting number of processors should return same as ThreadProcessorCount
+Last Modified 2025/06/24 by Jamie Boyd */
+extern "C" int GetSetNumProcessors(GetSetNumProcessorsParamsPtr p){
+    gNumProcessors = num_processors();
+    p->result = (double)gNumProcessors;
+    return (0);
+}
 
-/**********************************************************************************************************************
-Template for SwapEven functions
-Last Modified 2013/07/15 by Jamie Boyd*/
-template <typename T> void SwapEvenT (T *dataStartPtr, CountInt numLines, CountInt lineLen)
-{
+/* -------------------------------- SwapEven -------------------------------------------------------
+ horizontally swaps every other line in an image or series of images.
+ Used after doing back and forth scanning, where every other line is scanned from the opposite direction.
+ ----------------------------------------------------------------------------------------------------- */
+
+
+/* Template for SwapEven function
+Last Modified 2013/07/15 by Jamie Boyd */
+template <typename T> void SwapEvenT (T *dataStartPtr, CountInt numLines, CountInt lineLen) {
     // make Pointer to end of the data
     T* dataEndPtr = dataStartPtr + (numLines * lineLen);
     // make pointers for start and end of each line
@@ -41,18 +44,28 @@ template <typename T> void SwapEvenT (T *dataStartPtr, CountInt numLines, CountI
     }
 }
 
+/* Structure to pass data to each SwapEvenThread
+Last Modified 2013/07/15 by Jamie Boyd */
+typedef struct SwapEvenThreadParams{
+    int inPutWaveType;
+    char* dataStartPtr;
+    CountInt numLines;
+    CountInt lineLen;
+    UInt8 ti; // number of this thread, starting from 0
+    UInt8 tN; // total number of threads (255 "should be enough for anyone")
+}SwapEvenThreadParams, *SwapEvenThreadParamsPtr;
 
-/**********************************************************************************************************************
-Each thread to swap a range of rows starts with this function
+
+/* Each thread to swap a range of rows starts with this function
 Last Modified 2025/06/13 by Jamie Boyd */
 void* SwapEvenThread (void* threadarg){
-
     struct SwapEvenThreadParams* p;
     p = (struct SwapEvenThreadParams*) threadarg;
     CountInt tLines = (p-> numLines/p->tN);
     if (tLines % 2) tLines--; // make sure number of lines per thread is even
     CountInt startPos = p->ti * tLines * p->lineLen;
-    if (p->ti == p->tN - 1) tLines +=  (p->numLines % p->tN); // the last thread gets any left-over lines
+    // the last thread gets any left-over lines
+    if (p->ti == p->tN - 1) tLines +=  (p->numLines % p->tN);
     // call the right template function for the wave types
     switch (p->inPutWaveType) {
     case NT_I8:
@@ -79,22 +92,18 @@ void* SwapEvenThread (void* threadarg){
     case NT_FP64:
         SwapEvenT ((double*)p->dataStartPtr + startPos, tLines, p->lineLen);
         break;
-    default:    // Unknown data type - possible in a future version of Igor.
-        throw NT_FNOT_AVAIL;
         break;
     }
-    return NULL;
+    return nullptr;
 }
 
-
-/*****************************************************************************************************************
-SwapEven horizontally swaps every other line in an image or series of images. Used after doing back and forth scanning,
-where every other line is scanned from the opposite direction.
-typedef struct SwapEvenParams
-waveHndl w1; // input wave
-Last Modified 2025/06/13 by Jamie Boyd */
+/* SwapEven XOP entry function
+ SwapEvenParams:
+ wave handle to start of data of input wave, which is overwrittten
+ result =  0 or error code
+Last Modified 2025/06/23 by Jamie Boyd */
 extern "C" int SwapEven (SwapEvenParamsPtr p){
-    waveHndl wavH = NULL;        // handle to the input wave
+    waveHndl wavH = nullptr;        // handle to the input wave
     int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
     int numDimensions;    // number of dimensions in input and output waves
     CountInt dimensionSizes[MAX_DIMENSIONS+1];    // an array used to hold the width, height, layers, and chunk sizes
@@ -103,10 +112,14 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
     CountInt numLines;    // The number of lines in the file
     int result;    // The error returned from various Wavemetrics functions
     char* dataStartPtr;    // Pointer to start of data in input wave. Need to use char for these to use WM function to get data offset
+    // Multi threading
+    UInt8 iThread, nThreads;
+    SwapEvenThreadParamsPtr paramArrayPtr = nullptr;
+    pthread_t* threadsPtr = nullptr;
     try {
         // Get handle to input wave. Make sure it exists.
         wavH = p->w1;
-        if (wavH == NULL) throw result = NON_EXISTENT_WAVE;
+        if (wavH == nullptr) throw result = NON_EXISTENT_WAVE;
         // Get wave data type.
         waveType = WaveType(wavH);
         // Can't process text waves
@@ -124,7 +137,21 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
         }
         // Get the offsets to the data in the wave
         if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result = WAVEERROR_NOS;
+        dataStartPtr = (char*)(*wavH) + dataOffset;
+        // Multi threading
+        nThreads = gNumProcessors;
+        paramArrayPtr = (SwapEvenThreadParamsPtr)WMNewPtr(nThreads * sizeof(SwapEvenThreadParams));
+        if (paramArrayPtr == nullptr) throw result = MEMFAIL;
+        // make an array of pthread_t
+        threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == nullptr) throw result = MEMFAIL;
     }catch (int result){
+        if (paramArrayPtr != nullptr){
+            WMDisposePtr ((Ptr)paramArrayPtr);
+            if (threadsPtr != nullptr){
+                WMDisposePtr ((Ptr)threadsPtr);
+            }
+        }
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
         return (0);
@@ -132,10 +159,7 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
         return (result);
 #endif
     }
-    dataStartPtr = (char*)(*wavH) + dataOffset;
-    // Multi threading
-    UInt8 iThread, nThreads = gNumProcessors;
-    SwapEvenThreadParamsPtr paramArrayPtr= (SwapEvenThreadParamsPtr)WMNewPtr(nThreads * sizeof(SwapEvenThreadParams));
+    // fill threadParams array
     for (iThread = 0; iThread < nThreads; iThread++){
         paramArrayPtr[iThread].inPutWaveType = waveType;
         paramArrayPtr[iThread].dataStartPtr = dataStartPtr;
@@ -144,8 +168,6 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
         paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
         paramArrayPtr[iThread].tN =nThreads; // total number of threads
     }
-    // make an array of pthread_t
-    pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, SwapEvenThread, (void *) &paramArrayPtr[iThread]);
@@ -158,26 +180,21 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
     WMDisposePtr ((Ptr)threadsPtr);
     // Free paramaterArray memory
     WMDisposePtr ((Ptr)paramArrayPtr);
-    WaveHandleModified(wavH);            // Inform Igor that we have changed the input wave.
-    p -> result = (0);                // // XFUNC error code will be 0
+    // Inform Igor that we have changed the input wave.
+    WaveHandleModified(wavH);
+    p -> result = (0);
     return (0);
 }
 
+/* -------------------------------------DownSample--------------------------------------------------------
+Down Sample takes a wave and resizes its X dimension, combining boxfactor points by taking the
+ average, sum, max, or median value of boxFactor points. Used after "oversampling" during scanning,
+ i.e., taking several A/D conversions per pixel
+DownSample methods: 1 = average, 2 = sum, 3 = max, 4 = median
+------------------------------------------------------------------------------------------------------------ */
 
-//Structure to pass data to each DownSample thread
-//Last Modified 2013/07/15 by Jamie Boyd */
-typedef struct DownSampleThreadParams{
-    int inPutWaveType;
-    char* dataStartPtr;
-    CountInt points;
-    CountInt boxFactor;
-    UInt8 DSType;
-    UInt8 ti; // number of this thread, starting from 0
-    UInt8 tN; // total number of threads (255 "should be enough for anyone")
-}DownSampleThreadParams, *DownSampleThreadParamsPtr;
 
-/********************************************************************************************************************
-Template functions for the various DownSample methods
+/* Template functions for the various DownSample methods
 Case 1 Kalman-style averaging.
 Last Modified 2013/07/15 by Jamie Boyd */
 template <typename T> void DSaverageT (T *dataStartPtr, CountInt points, UInt16 boxFactor) {
@@ -313,11 +330,23 @@ template <typename T> void DSMedianT (T *dataStartPtr, CountInt points, UInt16 b
     }
 }
 
-/**********************************************************************************************************************
-Each thread to down sampe a range of points  starts with this function
+
+/* Structure to pass data to each DownSample thread
+Last Modified 2013/07/15 by Jamie Boyd */
+typedef struct DownSampleThreadParams{
+    int inPutWaveType;
+    char* dataStartPtr;
+    CountInt points;
+    CountInt boxFactor;
+    UInt8 DSType;
+    UInt8 ti; // number of this thread, starting from 0
+    UInt8 tN; // total number of threads (255 "should be enough for anyone")
+}DownSampleThreadParams, *DownSampleThreadParamsPtr;
+
+
+/* Each thread to down sampe a range of points  starts with this function
 Last Modified 2025/06/23 by Jamie Boyd */
 void* DownSampleThread (void* threadarg){
-    
     struct DownSampleThreadParams* p;
     p = (struct DownSampleThreadParams*) threadarg;
     CountInt tPoints = (p->points/p->tN);  // number of points to do per thread
@@ -326,7 +355,7 @@ void* DownSampleThread (void* threadarg){
     CountInt boxFactor = p->boxFactor;
     UInt8 DSType = p->DSType;
     char* dataStartPtr = p->dataStartPtr;
-    // call the right template function for the wave types
+    // call the right template function for the down sample type
     switch (p->inPutWaveType) {
         case NT_FP64:
             switch (DSType){
@@ -457,21 +486,16 @@ void* DownSampleThread (void* threadarg){
             }
             break;
     }    // end of switch
-    return NULL;
+    return nullptr;
 }
 
 
-
-
-/*****************************************************************************************************************
-Down Sample takes a wave and resizes its X dimension, combining boxfactor points by taking the average/sum/max/median value
-Used after "oversampling" during scanning; i.e., taking several A/D conversions per pixel
-typedef struct DownSampleParams
-double dsType; // 1 = average, 2 = sum, 3 = max, 4 = median
-double boxFactor; // number of pixels to be binned
-waveHndl w1;  //input wave - wave is overwritten
+/* DownSample XOP entry function
+ DownSampleParams:
+ wavehandle to input wave, which is overwritten
+ downSample type 1 = average, 2 = sum, 3 = max, 4 = median
+ boxfactor = number of pixels boxed together
 Last Modified 2025/06/13 by Jamie Boyd */
-
 extern "C" int DownSample (DownSampleParamsPtr p) {
     int result = 0;    // The error returned from various Wavemetrics functions
     int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
@@ -483,6 +507,9 @@ extern "C" int DownSample (DownSampleParamsPtr p) {
     waveHndl wavH;        // handle to the input wave
     char* dataStartPtr;    // Pointer to start of data in input wave. Need to use char for these to use WM function to get data offset
     UInt8 DSType;
+    DownSampleThreadParamsPtr paramArrayPtr = nullptr;
+    pthread_t* threadsPtr = nullptr;
+    UInt8 iThread, nThreads;
     try{
         // Get handles to input wave. Make sure it exists.
         wavH = p->w1;
@@ -511,8 +538,18 @@ extern "C" int DownSample (DownSampleParamsPtr p) {
         }
         // get wave handle
         if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result = WAVEERROR_NOS;
-        
+        // make pointer to start of wave data
+        dataStartPtr = (char*)(*wavH) + dataOffset;
+        // Get ready for Multi threading
+        nThreads = gNumProcessors;
+        // make an arrray of paramater pointers
+        paramArrayPtr = (DownSampleThreadParamsPtr)WMNewPtr(nThreads * sizeof(DownSampleThreadParams));
+        // make an array of pthread_t
+       threadsPtr = (pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     }catch (int result){
+        // dispose of any memory we may have allocated
+        if (paramArrayPtr != nullptr) WMDisposePtr ((Ptr)paramArrayPtr);
+        if (threadsPtr != nullptr) WMDisposePtr ((Ptr)threadsPtr);
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
         return (0);
@@ -520,23 +557,16 @@ extern "C" int DownSample (DownSampleParamsPtr p) {
         return (result);
 #endif
     }
-    // make pointer to start of wave data
-    dataStartPtr = (char*)(*wavH) + dataOffset;
-    
-    // Multi threading
-    UInt8 iThread, nThreads = gNumProcessors;
-    DownSampleThreadParamsPtr paramArrayPtr= (DownSampleThreadParamsPtr)WMNewPtr(nThreads * sizeof(DownSampleThreadParams));
+    // fill paramater array
     for (iThread = 0; iThread < nThreads; iThread++){
         paramArrayPtr[iThread].inPutWaveType = waveType;
         paramArrayPtr[iThread].dataStartPtr = dataStartPtr;
         paramArrayPtr[iThread].points = points;
         paramArrayPtr[iThread].boxFactor = boxFactor;
         paramArrayPtr[iThread].DSType = DSType;
-        paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
-        paramArrayPtr[iThread].tN =nThreads; // total number of threads
+        paramArrayPtr[iThread].ti = iThread; // number of this thread, starting from 0
+        paramArrayPtr[iThread].tN = nThreads; // total number of threads
     }
-    // make an array of pthread_t
-    pthread_t* threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, DownSampleThread, (void *) &paramArrayPtr[iThread]);
@@ -554,13 +584,302 @@ extern "C" int DownSample (DownSampleParamsPtr p) {
     dimensionSizes [2] = zSize;
     dimensionSizes [3] = 0;
     MDChangeWave2 (wavH, -1, dimensionSizes, 1);
-    WaveHandleModified (wavH);            // Inform Igor that we have changed the input wave.
+    // Inform Igor that we have changed the input wave.
+    WaveHandleModified (wavH);
     p -> result = (0);
     return (0);
 }
 
-/************************Decumulate Functions***********************************************************/
-// The following template is used to handle any one of the different types of wave data
+
+/*  ---------------------------------------Transpose Frames------------------------------------------------------------
+Transposes each frame in a 3D wave (equivalent to a horizontal flip and a 90 degree counter-clockwise rotation).
+Useful because microscope may have an odd number of  mirrors in the light path
+ ------------------------------------------------------------------------------------------------------------------- */
+
+
+/* template function for transposeFrames that are not square
+ Last Modified: 2025/06/23 by Jamie Boyd */
+template <typename T> void TransposeFramesT (T *dataStartPtr, T *frameCopyStart, CountInt xSize, CountInt ySize, CountInt zSize) {
+    CountInt frameSize = (xSize * ySize);
+    BCInt frameBytes = (frameSize * sizeof(T));
+    // make Pointer to end of the data
+    T* dataEndPtr = dataStartPtr + (frameSize * zSize);
+    // make pointer for progressing through the given data
+    T *dataWavePtr;
+    //pointers for iterating through x and y
+    T *frameCopyPtr, *frameXend, *frameYend;
+    CountInt toNextX = frameSize-1;
+    for (dataWavePtr= dataStartPtr; dataWavePtr < dataEndPtr;){
+        //make a copy of the current frame into the frame copy buffer
+        frameCopyStart = (T*) memcpy (frameCopyStart, dataWavePtr, frameBytes);
+        //iterate through x
+        for (frameCopyPtr = frameCopyStart, frameXend = frameCopyStart + xSize;frameCopyPtr < frameXend;frameCopyPtr -= toNextX){
+            // iterate through y
+            for (frameYend = frameCopyPtr + frameSize; frameCopyPtr < frameYend ;frameCopyPtr += xSize, dataWavePtr+=1){
+                *dataWavePtr = *frameCopyPtr;
+            }
+        }
+    }
+}
+
+/* Template function for TransposeFrames functions with frames that are square, as they often are.
+ Does not need to use a frame buffer, so should be a little faster
+ Last Modified 2013/07/15 by Jamie Boyd */
+template <typename T> void TransposeSquareFramesT (T *dataStartPtr, CountInt xySize, CountInt zSize){
+    CountInt frameSize = xySize * xySize;
+    // make Pointer to end of the data
+    T* dataEndPtr = dataStartPtr + ((frameSize * zSize) - xySize);
+    // make pointers for progressing through the data
+    T *xPtr, *yPtr;
+    // variables to point to the ends of the current line. x and y both the same, so we only need count X
+    T *xEndLinePtr;
+    // variable to count lines
+    CountInt lines;
+    // frames - 1, just because it's easier to read this way
+    CountInt frameSizeMinus1 = frameSize - 1;
+    // temp variable for SWAP macro
+    T temp;
+    //frames
+    for (xPtr = dataStartPtr + 1, yPtr = dataStartPtr + xySize; xPtr < dataEndPtr; xPtr += 1,yPtr += 1){
+        //columns/rows
+        for (lines = 1; lines < xySize; lines += 1, xPtr += lines, yPtr -= (frameSizeMinus1 - lines*xySize)){
+            // points in individual column/row
+            for (xEndLinePtr = xPtr + (xySize - lines); xPtr < xEndLinePtr; xPtr += 1,yPtr += xySize){
+                SWAP (*xPtr, *yPtr);
+            }
+        }
+    }
+}
+
+
+/* Structure to pass data to each TransposeFrames thread
+ Last Modified 2025/06/23 by Jamie Boyd */
+typedef struct TransposeFramesThreadParams{
+    int inPutWaveType;          // WaveMetrics code for waveType
+    char* dataStartPtr;         // pointer to start of input wave, which is overwritten
+    char* bufferPtr;            // pointer to start of a frame-sized buffer for temporary calculations, not used for square frames
+    CountInt xSize;            // number of columns in each frame
+    CountInt ySize;            // number of rows in each frame
+    CountInt zSize;             // number of frames in wave
+    UInt8 ti; // number of this thread, starting from 0
+    UInt8 tN; // total number of threads (255 "should be enough for anyone")
+} TransposeFramesThreadParams, *TransposeFramesThreadParamsPtr;
+
+
+/* Each thread to transpose a range of frames starts with this function
+Last Modified 2025/06/23 by Jamie Boyd */
+void* TransposeFramesThread (void* threadarg){
+    struct TransposeFramesThreadParams* p = (struct TransposeFramesThreadParams*) threadarg;
+    CountInt frameSize = p->xSize * p->ySize;
+    CountInt tFrames = (p->zSize/p->tN);  // number of frames to do per thread
+    CountInt startOffset = p->ti * frameSize * tFrames ;   // starting position for this thread
+    if (p->ti == p->tN - 1) tFrames += (tFrames % p->tN); // the last thread gets any left-over frames
+    if (p->xSize == p->ySize){
+        switch (p->inPutWaveType) {
+            case NT_FP64:
+                TransposeSquareFramesT ((double*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                break;
+            case NT_FP32:
+                TransposeSquareFramesT (((float*) p->dataStartPtr) +startOffset, p->xSize, tFrames);
+                break;
+            case (NT_I32 | NT_UNSIGNED):
+                TransposeSquareFramesT ((unsigned long*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                break;
+            case NT_I32:
+                TransposeSquareFramesT ((long*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                break;
+            case (NT_I16 | NT_UNSIGNED):
+                TransposeSquareFramesT ((unsigned short*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                break;
+            case NT_I16:
+                TransposeSquareFramesT ((short*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                break;
+            case (NT_I8 | NT_UNSIGNED):
+                TransposeSquareFramesT ((unsigned char*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                break;
+            case NT_I8:
+                TransposeSquareFramesT ((char*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                break;
+        }
+    }else{
+        CountInt bufferOffset =p->ti * frameSize;
+        switch (p->inPutWaveType) {
+            case NT_FP64:
+                TransposeFramesT ((double*) p->dataStartPtr + startOffset, (double*) p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                break;
+            case NT_FP32:
+                TransposeFramesT ((float*) p->dataStartPtr + startOffset, (float*) p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                break;
+            case (NT_I32 | NT_UNSIGNED):
+                TransposeFramesT ((unsigned long*) p->dataStartPtr + startOffset, (unsigned long*) p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                break;
+            case NT_I32:
+                TransposeFramesT ((long*) p->dataStartPtr + startOffset, (long*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                break;
+            case (NT_I16 | NT_UNSIGNED):
+                TransposeFramesT ((unsigned short*) p->dataStartPtr + startOffset, (unsigned short*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                break;
+            case NT_I16:
+                TransposeFramesT ((short*) p->dataStartPtr + startOffset, (short*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                break;
+            case (NT_I8 | NT_UNSIGNED):
+                TransposeFramesT ((unsigned char*) p->dataStartPtr + startOffset, (unsigned char*) p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                break;
+            case NT_I8:
+                TransposeFramesT ((char*) p->dataStartPtr + startOffset, (char*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                break;
+        }
+    }
+    return nullptr;
+ }
+
+/* TransposeFrames XOP entry function
+ TransposeFramesParams:
+ wave handle to input wave, which is always overwritten
+ result which is 0 or error code
+ Last Modified 2025/06/23 by Jamie Boyd */
+extern "C" int TransposeFrames (TransposeFramesParamsPtr p) {
+    int result = 0;    // The error returned from various Wavemetrics functions
+    int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
+    int numDimensions;    // number of dimensions in input and output waves
+    CountInt dimensionSizes[MAX_DIMENSIONS+1];    // an array used to hold the width, height, layers, and chunk sizes
+    BCInt dataOffset;    //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
+    CountInt xSize;    // The length of each line in each frame
+    CountInt ySize; // number of lines in each frame
+    CountInt zSize; // number of frames in the stack
+    UInt8 is3D; // need to know 2D from 3D when redimensioning
+    waveHndl wavH;        // handle to the input wave
+    char* dataStartPtr;    // Pointer to start of data in input wave. Need to use char for these to use WM function to get data offset
+    // threading
+    UInt8 iThread, nThreads;
+    TransposeFramesThreadParamsPtr paramArrayPtr = nullptr;
+    pthread_t* threadsPtr = nullptr; // pointer to threads array
+    char* bufferPtr = nullptr;  // pointer to temp buffer for threads
+    // try/catch block to allocate all memory and catch errors before starting threads
+    try {
+        // Get handle to input wave. Make sure it exists.
+        wavH = p->w1;
+        if (wavH == NIL) throw result = NON_EXISTENT_WAVE;
+        // Get wave data type.
+        waveType = WaveType(wavH);
+        // Can't process text waves
+        if (waveType == TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
+        // Get number of used dimensions in wave.
+        if (MDGetWaveDimensions(wavH, &numDimensions, dimensionSizes)) throw result = WAVEERROR_NOS;
+        // Check that wave is 2D or 3D
+        if ((numDimensions == 1) || (numDimensions == 4)) throw result = INPUTNEEDS_2D3D_WAVE;
+        // Get dimension sizes info and do special case when number of frames is 1
+        xSize = dimensionSizes[0];
+        ySize = dimensionSizes[1];
+        if (numDimensions == 2){
+            zSize = 1;
+            is3D = 0;
+        }else{
+            zSize = dimensionSizes[2];
+            is3D = 1;
+        }
+        // Get the offset to the data in the wave
+        if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result = WAVEERROR_NOS;
+        dataStartPtr = (char*)(*wavH) + dataOffset;
+        // get ready for Multi threading
+        nThreads = gNumProcessors;
+        if (zSize < gNumProcessors) nThreads = zSize;
+        // make an array of threadPramsStruct
+        paramArrayPtr = (TransposeFramesThreadParamsPtr)WMNewPtr(nThreads * sizeof(TransposeFramesThreadParams));
+        if (paramArrayPtr == nullptr) throw result = MEMFAIL;
+        // make an array of pthread_t
+        threadsPtr = (pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == nullptr) throw result = MEMFAIL;
+        if (xSize != ySize){ // not square frames, so need to  make a frame sized buffer
+            switch (waveType) {
+                case NT_I64 | NT_UNSIGNED:
+                case NT_I64:
+                case NT_FP64:
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * 8);
+                    break;
+                case NT_I32 | NT_UNSIGNED:
+                case NT_I32:
+                case NT_FP32:
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * 4);
+                    break;
+                case NT_I16 | NT_UNSIGNED:
+                case NT_I16:
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * 2);
+                    break;
+                case NT_I8 | NT_UNSIGNED:
+                case NT_I8:
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * 1);
+                    break;
+                default:
+                    throw result = NUMTYPE;
+                    break;
+            }
+            if (bufferPtr == NULL) throw result = NOMEM;
+        }
+    }catch (int result){ // free any memory we may have allocated so far
+        if (bufferPtr != NULL) WMDisposePtr ((Ptr)bufferPtr);
+        if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
+        if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
+        p -> result = (double)(result - FIRST_XOP_ERR);
+#ifdef NO_IGOR_ERR
+        return (0);
+#else
+        return (result);
+#endif
+    }
+    // fill the array of paramater structs
+    for (iThread = 0; iThread < nThreads; iThread++){
+        paramArrayPtr[iThread].inPutWaveType = waveType;
+        paramArrayPtr[iThread].dataStartPtr = dataStartPtr;
+        if (xSize != ySize) paramArrayPtr[iThread].bufferPtr = bufferPtr;
+        paramArrayPtr[iThread].xSize = xSize;
+        paramArrayPtr[iThread].ySize = ySize;
+        paramArrayPtr[iThread].zSize = zSize;
+        paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
+        paramArrayPtr[iThread].tN =nThreads; // total number of threads
+    }
+    // create the threads
+    for (iThread = 0; iThread < nThreads; iThread++){
+        pthread_create (&threadsPtr[iThread], NULL, TransposeFramesThread, (void *) &paramArrayPtr[iThread]);
+    }
+    // Wait till all the threads are finished
+    for (iThread = 0; iThread < nThreads; iThread++){
+        pthread_join (threadsPtr[iThread], NULL);
+    }
+   // stuff for un-square frames
+    if (xSize != ySize){
+        WMDisposePtr ((Ptr)bufferPtr);
+        // redimension, swapping X and Ys
+        MemClear(dimensionSizes, sizeof(dimensionSizes));
+        dimensionSizes [ROWS] = ySize;
+        dimensionSizes [COLUMNS] = xSize;
+        if (is3D){
+            dimensionSizes [LAYERS] = zSize;
+        }else{
+            dimensionSizes [LAYERS] =0;
+        }
+        dimensionSizes [CHUNKS] =0;
+        MDChangeWave2 (wavH, -1, dimensionSizes, 1);
+    }
+    // free memory for pThreads Array
+    WMDisposePtr ((Ptr)threadsPtr);
+    // Free paramaterArray memory
+    WMDisposePtr ((Ptr)paramArrayPtr);
+    // Inform Igor that we have changed the input wave.
+    WaveHandleModified(wavH);
+    p -> result = (0);
+    return (0);
+}
+
+/* -------------------------------Decumulate Functions--------------------------------------------------
+ For photon counting, the counter keeps a running total; i.e., it accumulates. To get counts for each pixel,
+ we need to subtract from the from count at each pixel the count of the pixel before it, i.e., decumulate
+ Also, the first pixel in each line contains photons from flyback time, so set it to 0
+ -------------------------------------------------------------------------------------------------------- */
+
+
+/* The following template is used to handle any one of the different types of wave data
+ Last Modified 2013 by Jamie Boyd */
 template <typename T> void DecumulateT(T *srcWaveStart, CountInt NumPnts, UInt32 epMax, UInt32 maxCount){
     T *srcWavePtr;
     // set srcWavePtr to last point in wave and work backwards
@@ -571,11 +890,8 @@ template <typename T> void DecumulateT(T *srcWaveStart, CountInt NumPnts, UInt32
 
 
 /****************************************************************************************************************
-Decumulate. For photon counting, the counter keeps a running total; i.e., it accumulates. To get counts for each pixel,
-we need to subtract from the from count at each pixel the count of the pixel before it, i.e., decumulate
-Also, the first pixel in each line contains photons from flyback time, so set it to 0
+Decumulate.
 typedef struct DecumulateParams
-double expMax;  //expected maximum counts per pixel. Used in seeing if counter has rolled over or other error
 double bitSize;   //bitsize of the counter. expected to be either 24 or 32
 waveHndl w1;  // input wave - is overwritten
 Last Modified 2025/06/13 by Jamie Boyd
@@ -649,231 +965,3 @@ int Decumulate (DecumulateParamsPtr p) {
         return result;  // XFUNC error code.
     }
 }
-
-/***************************************************************************************************************
-template for TransposeFrames functions with frames that are not square
-Last Modified 2013/07/15 by Jamie Boyd */
-template <typename T> int TransposeFramesT (T *dataStartPtr, CountInt xSize, CountInt ySize, CountInt zSize)
-{
-    //reserve some memory to copy each frame into by turn
-    CountInt frameSize = (xSize * ySize);
-    BCInt frameBytes = (frameSize * sizeof(T));
-    T* frameCopyStart = (T*)WMNewPtr (frameBytes);
-    if (frameCopyStart == NULL)
-        return NOMEM;
-    // make Pointer to end of the data
-    T* dataEndPtr = dataStartPtr + (frameSize * zSize);
-    // make pointer for progressing through the given data
-    T *dataWavePtr;
-    //pointers for iterating through x and y
-    T *frameCopyPtr, *frameXend, *frameYend;
-    CountInt toNextX = frameSize-1;
-    for (dataWavePtr= dataStartPtr; dataWavePtr < dataEndPtr;){
-        //make a copy of the current frame using the frame copy pointer
-        frameCopyStart = (T*) memcpy (frameCopyStart, dataWavePtr, frameBytes);
-        //iterate through x
-        for (frameCopyPtr = frameCopyStart, frameXend = frameCopyStart + xSize;frameCopyPtr < frameXend;frameCopyPtr -= toNextX){
-            // iterate through y
-            for (frameYend = frameCopyPtr + frameSize; frameCopyPtr < frameYend ;frameCopyPtr += xSize, dataWavePtr+=1){
-                *dataWavePtr = *frameCopyPtr;
-            }
-        }
-    }
-    //free memory for frame copy
-    WMDisposePtr ((Ptr)frameCopyStart);
-    return 0;
-}
-
-/***************************************************************************************************************
-Template for TransposeFrames functions with frames that are square, as they often are. A little faster
-Last Modified 2013/07/15 by Jamie Boyd */
-template <typename T> int TransposeSquareFramesT (T *dataStartPtr, CountInt xSize, CountInt zSize)
-{
-    CountInt frameSize = xSize * xSize;
-    // make Pointer to end of the data
-    T* dataEndPtr = dataStartPtr + ((frameSize * zSize) - xSize);
-    // make pointers for progressing through the data
-    T *xPtr, *yPtr;
-    // variables to point to the ends of the current line. x and y both the same, so we only need count X
-    T *xEndLinePtr;
-    // variable to count lines
-    CountInt lines;
-    // frames - 1, just because it's easier to read this way
-    CountInt frameSizeMinus1 = frameSize - 1;
-    // temp variable for SWAP macro
-    T temp;
-    //frames
-    for (xPtr = dataStartPtr + 1, yPtr = dataStartPtr + xSize; xPtr < dataEndPtr; xPtr += 1,yPtr += 1){
-        //columns/rows
-        for (lines = 1; lines < xSize; lines += 1, xPtr += lines, yPtr -= (frameSizeMinus1 - lines*xSize)){
-            // points in individual column/row
-            for (xEndLinePtr = xPtr + (xSize - lines); xPtr < xEndLinePtr; xPtr += 1,yPtr += xSize){
-                SWAP (*xPtr, *yPtr);
-            }
-        }
-    }
-    return 0;
-}
-
-/*****************************************************************************************************************
-TransposeFrames. Transposes each frame in a 3D wave (equivalent to a horizontal flip and a 90 degree counter-clockwise
-rotation). Needed because microscope may have an extra mirror in the light path, thanks to A. Goroshkov.
-typedef struct TransposeFramesParams
-waveHndl w1 // input wave is modifed
-Last Modified 2025/06/13 by Jamie Boyd
-*****************************************************************************************************************/
-int TransposeFrames (TransposeFramesParamsPtr p)
-{
-
-    int result = 0;    // The error returned from various Wavemetrics functions
-    int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
-    int numDimensions;    // number of dimensions in input and output waves
-    CountInt dimensionSizes[MAX_DIMENSIONS+1];    // an array used to hold the width, height, layers, and chunk sizes
-    BCInt dataOffset;    //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
-    CountInt xSize;    // The length of each line in each frame
-    CountInt ySize; // number of lines in each frame
-    CountInt zSize; // number of frames in the stack
-    UInt8 is3D; // need to know 2D from 3D when redimensioning
-    waveHndl wavH;        // handle to the input wave
-    char* dataStartPtr;    // Pointer to start of data in input wave. Need to use char for these to use WM function to get data offset
-    //First try block is for setting stuff up, before wave handle is locked
-    try {
-        // Get handle to input wave. Make sure it exists.
-        wavH = p->w1;
-        if (wavH == NIL)
-            throw result = NON_EXISTENT_WAVE;
-        // Get wave data type.
-        waveType = WaveType(wavH);
-        // Can't process text waves
-        if (waveType == TEXT_WAVE_TYPE)
-            throw result = NOTEXTWAVES;
-        // Get number of used dimensions in wave.
-        if (result = MDGetWaveDimensions(wavH, &numDimensions, dimensionSizes))
-            throw result;
-        // Check that wave is 2D or 3D
-        if ((numDimensions == 1) || (numDimensions == 4))
-            throw result = INPUTNEEDS_2D3D_WAVE;
-        // Get dimension sizes info and do special case when number of frames is 1
-        xSize = dimensionSizes[0];
-        ySize = dimensionSizes[1];
-        if (numDimensions == 2){
-            zSize = 1;
-            is3D = 0;
-        }else{
-            zSize = dimensionSizes[2];
-            is3D = 1;
-        }
-    }catch (int result){
-        p -> result = result;
-        return result;  // XFUNC error code.
-    }try {
-        // Get the offsets to the data in the wave
-        if (result = MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset))
-            throw result;
-        dataStartPtr = (char*)(*wavH) + dataOffset;
-        if (xSize == ySize){
-            switch (waveType) {
-            case NT_FP64:
-                if (result = TransposeSquareFramesT ((double*) dataStartPtr, xSize, zSize))
-                    throw result;
-                break;
-            case NT_FP32:
-                if (result =TransposeSquareFramesT ((float*) dataStartPtr, xSize, zSize))
-                    throw result;
-                break;
-            case (NT_I32 | NT_UNSIGNED):
-                if (result =TransposeSquareFramesT ((unsigned long*) dataStartPtr, xSize, zSize))
-                    throw result;
-                break;
-            case NT_I32:
-                if (result =TransposeSquareFramesT ((long*) dataStartPtr, xSize, zSize))
-                    throw result;
-                break;
-            case (NT_I16 | NT_UNSIGNED):
-                if (result =TransposeSquareFramesT ((unsigned short*) dataStartPtr, xSize,zSize))
-                    throw result;
-                break;
-            case NT_I16:
-                if (result = TransposeSquareFramesT ((short*) dataStartPtr, xSize, zSize))
-                    throw result;
-                break;
-            case (NT_I8 | NT_UNSIGNED):
-                if (result =TransposeSquareFramesT ((unsigned char*) dataStartPtr, xSize, zSize))
-                    throw result;
-                break;
-            case NT_I8:
-                if (result = TransposeSquareFramesT ((char*) dataStartPtr, xSize, zSize))
-                    throw result;
-                break;
-            default:    // Unknown data type - possible in a future version of Igor.
-                throw result = NT_FNOT_AVAIL;
-                break;
-            }    // end of switch
-        }else{
-            switch (waveType) {
-            case NT_FP64:
-                if (result = TransposeFramesT ((double*) dataStartPtr, xSize, ySize, zSize))
-                    throw result;
-                break;
-            case NT_FP32:
-                if (result =TransposeFramesT ((float*) dataStartPtr, xSize, ySize, zSize))
-                    throw result;
-                break;
-            case (NT_I32 | NT_UNSIGNED):
-                if (result =TransposeFramesT ((unsigned long*) dataStartPtr, xSize, ySize, zSize))
-                    throw result;
-                break;
-            case NT_I32:
-                if (result =TransposeFramesT ((long*) dataStartPtr, xSize, ySize, zSize))
-                    throw result;
-                break;
-            case (NT_I16 | NT_UNSIGNED):
-                if (result =TransposeFramesT ((unsigned short*) dataStartPtr, xSize, ySize, zSize))
-                    throw result;
-                break;
-            case NT_I16:
-                if (result = TransposeFramesT ((short*) dataStartPtr, xSize, ySize, zSize))
-                    throw result;
-                break;
-            case (NT_I8 | NT_UNSIGNED):
-                if (result =TransposeFramesT ((unsigned char*) dataStartPtr, xSize, ySize, zSize))
-                    throw result;
-                break;
-            case NT_I8:
-                if (result = TransposeFramesT ((char*) dataStartPtr, xSize, ySize, zSize))
-                    throw result;
-                break;
-            default:    // Unknown data type - possible in a future version of Igor.
-                throw result = NT_FNOT_AVAIL;
-                break;
-            }
-        }
-    }catch (int result){
-        p -> result = result;
-        return (result);                            // XFUNC error code.
-    }try{
-        if (xSize != ySize){
-            // redimension, swapping X and Ys
-            MemClear(dimensionSizes, sizeof(dimensionSizes));
-            dimensionSizes [0] = ySize;
-            dimensionSizes [1] = xSize;
-            if (is3D)
-                dimensionSizes [2] =0;
-            else{
-                dimensionSizes [2] = zSize;
-                dimensionSizes [3] =0;
-            }
-            if (result = MDChangeWave2 (wavH, -1, dimensionSizes, 1))
-                throw result;
-        }
-        WaveHandleModified(wavH);            // Inform Igor that we have changed the input wave.
-        p -> result = result;                //XFUNC error code will be 0
-        return (result);
-    }
-    // catch and return any errors that ocurred - handle is already reset
-    catch (int result){
-        p -> result = result;
-        return (result);                            // XFUNC error code.
-    }
-}
-
