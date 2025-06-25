@@ -145,12 +145,8 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
         threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
         if (threadsPtr == nullptr) throw result = MEMFAIL;
     }catch (int result){
-        if (paramArrayPtr != nullptr){
-            WMDisposePtr ((Ptr)paramArrayPtr);
-            if (threadsPtr != nullptr){
-                WMDisposePtr ((Ptr)threadsPtr);
-            }
-        }
+        if (paramArrayPtr != nullptr) WMDisposePtr ((Ptr)paramArrayPtr);
+        if (threadsPtr != nullptr) WMDisposePtr ((Ptr)threadsPtr);
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
         return (0);
@@ -529,11 +525,11 @@ extern "C" int DownSample (DownSampleParamsPtr p) {
         if (xSize % boxFactor) throw result = BADFACTOR;
         ySize = dimensionSizes [1];
         if (numDimensions == 2){
-            points = xSize * ySize;
-        }else{
-            zSize = dimensionSizes [2];
-            points = xSize * ySize * zSize;
+            zSize = 1;
+        } else {
+            zSize = dimensionSizes[2];
         }
+        points = xSize * ySize * zSize;
         // get wave handle
         if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result = WAVEERROR_NOS;
         // make pointer to start of wave data

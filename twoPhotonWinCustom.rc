@@ -24,7 +24,7 @@ BEGIN
 "An input string is missing or is invalid.\0",
 "The scaling factor specified does not divide evenly into the image width.\0",
 "The Down Sample or Projection Type was not recognized.\0",
- A wave access error ocurred.\0",
+"A wave access error ocurred.\0",
 "Destination wave already exists and can not be overwritten.\0",
 "This function does not work for text waves.\0",
 "Can not project along the specified dimensions. Allowed dimensions are 0 for X, 1 for Y, and 2 for Z.\0",
@@ -35,249 +35,182 @@ BEGIN
 "This function only works with unsigned integer data.\0",
 "Temporary memory could not be allocated for processing\0",
 "Can not do this function on wave of this type\0",
+"Range of requested dimension to process is invalid\0",
+"\0"												// NOTE: NULL required to terminate the resource.
 
-"\0"							// NOTE: NULL required to terminate the resource.
 END
 
-1101 STR#							// Misc strings read by Igor.
+1101 STR#											// Misc strings read by Igor.
 BEGIN
-"-1\0",							// -1 means we don't want to add a menu item.
-"No Menu Item\0",				// Igor ignores item 2 because item 1 is -1.
-"twoPhotonXOP\0",				// Name of XOP's help file.
-0,								// NOTE: 0 required to terminate the resource.
+"-1\0",												// -1 means we don't want to add a menu item.
+"No Menu Item\0",									// Igor ignores item 2 because item 1 is -1.
+"twoPhotonXOP\0",									// Name of XOP's help file.
+0,													// NOTE: 0 required to terminate the resource.
 END
 
-1100 XOPI							// XOPI - Describes general XOP properties to IGOR. 
+1100 XOPI											// XOPI - Describes general XOP properties to IGOR. 
 BEGIN
-XOP_VERSION,					// Version number of host XOP system.
-DEV_SYS_CODE,					// Code for development system used to make XOP.
-0,								// Obsolete - set to zero.
-0,								// Obsolete - set to zero.
-XOP_TOOLKIT_VERSION				// XOP Toolkit version.
+XOP_VERSION,										// Version number of host XOP system.
+DEV_SYS_CODE,										// Code for development system used to make XOP.
+0,													// Obsolete - set to zero.
+0,													// Obsolete - set to zero.
+XOP_TOOLKIT_VERSION									// XOP Toolkit version.
 END
 
-1100 XOPF							// Describes functions added by XOP to IGOR.
+1100 XOPF											// Describes functions added by XOP to IGOR.
 BEGIN
-"GetSetNumProcessors\0",
-    F_UTIL | F_EXTERNAL,
-    NT_FP64,
-    0,
+"GetSetNumProcessors\0",							// Function Name
+F_UTIL | F_EXTERNAL,								// Function Category
+NT_FP64,											// Return Value Type
+0,													// No parameters. 0 required to terminate list of parameter types
     
-"KalmanAllFrames\0",					// Function name.
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,			// Return value type.
-	WAVE_TYPE,		// Wave to be averaged
-	HSTRING_TYPE	// output wavemname
-	NT_FP64,		// multiplier
-	NT_FP64,		// overwrite
-	0,				// NOTE: 0 required to terminate list of parameter types.
+"KalmanAllFrames\0",								// Function name.
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
+NT_FP64,											// Return value type.
+WAVE_TYPE,											// Wave to be averaged
+HSTRING_TYPE										// output wavemname
+NT_FP64,											// multiplier
+NT_FP64,											// overwrite
+0,													// NOTE: 0 required to terminate list of parameter types.
 
-	"KalmanSpecFrames\0",			// Function name.
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,						// Return value type.
-	WAVE_TYPE,	// wave to be averaged
-	NT_FP64,	// first input frame
-	NT_FP64,	// last input frame
-	WAVE_TYPE,	// wave to get results of the averaging
-	NT_FP64,	// outPut frame
-	NT_FP64,	// multiplier
-	0,							// NOTE: 0 required to terminate list of parameter types.
+"KalmanSpecFrames\0",								// Function name.
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
+NT_FP64,											// Return value type.
+WAVE_TYPE,											// wave to be averaged
+NT_FP64,											// first input frame
+NT_FP64,											// last input frame
+WAVE_TYPE,											// wave to get results of the averaging
+NT_FP64,											// outPut frame
+NT_FP64,											// multiplier
+0,													// NOTE: 0 required to terminate list of parameter types.
 
-	"KalmanWaveToFrame\0",			// Function name.
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,					/* return value type */
-	WAVE_TYPE,		/* The wave to be averaged */
-	NT_FP64,		/* multiplier */
-	0,
+"KalmanWaveToFrame\0",								// Function name.
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
+NT_FP64,											// return value type
+WAVE_TYPE,											// The wave to be averaged
+NT_FP64,											// multiplier
+0,
 
-	"KalmanList\0",
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	HSTRING_TYPE,
-	HSTRING_TYPE,
-	NT_FP64,
-	NT_FP64,
-	0,
+"KalmanList\0",
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+HSTRING_TYPE,
+HSTRING_TYPE,
+NT_FP64,
+NT_FP64,
+0,
 
-	"KalmanNext\0",
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	WAVE_TYPE,
-	NT_FP64,
-	0,
+"KalmanNext\0",
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,,
+NT_FP64,
+WAVE_TYPE,
+WAVE_TYPE,
+NT_FP64,
+0,
 
-	"ProjectAllFrames\0",
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	HSTRING_TYPE,
-	NT_FP64,
-	NT_FP64,
-	NT_FP64
-	0,
+"ProjectAllFrames\0",
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+WAVE_TYPE,
+HSTRING_TYPE,
+NT_FP64,
+NT_FP64,
+NT_FP64
+0,
 
-	"ProjectSpecFrames\0",
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	NT_FP64,
-	NT_FP64,
-	WAVE_TYPE,
-	NT_FP64,
-	NT_FP64,
-	NT_FP64
-	0,
+"ProjectSpecFrames\0",
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+WAVE_TYPE,
+NT_FP64,
+NT_FP64,
+WAVE_TYPE,
+NT_FP64,
+NT_FP64,
+NT_FP64
+0,
 
-	"ProjectXSlice\0",
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	WAVE_TYPE,
-	NT_FP64,
-	0,
+"ProjectXSlice\0",
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+WAVE_TYPE,
+WAVE_TYPE,
+NT_FP64,
+0,
 
-	"ProjectYSlice\0",
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	WAVE_TYPE,
-	NT_FP64,
-	0,
+"ProjectYSlice\0",
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+WAVE_TYPE,
+WAVE_TYPE,
+NT_FP64,
+0,
 
-	"ProjectZSlice\0",
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	WAVE_TYPE,
-	NT_FP64,
-	0,
+"ProjectZSlice\0",
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+WAVE_TYPE,
+WAVE_TYPE,
+NT_FP64,
+0,
 
-	"SwapEven\0"
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	0,
+"SwapEven\0"
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+WAVE_TYPE,
+0,
 
-	"DownSample\0"
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	NT_FP64,
-	NT_FP64,
-	0,
+"DownSample\0"
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+WAVE_TYPE,
+NT_FP64,
+NT_FP64,
+0,
 
-	"Decumulate\0"
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	NT_FP64,
-	NT_FP64,
-	0,
+"Decumulate\0"
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL
+NT_FP64,
+WAVE_TYPE,
+NT_FP64,
+NT_FP64,
+0,
 
-	"TransposeFrames\0"
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	0,
+"TransposeFrames\0"
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+WAVE_TYPE,
+0,
 
-	"ConvolveFrames\0",
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	HSTRING_TYPE,
-	NT_FP64,
-	WAVE_TYPE,
-	NT_FP64,
-	0,
+"ConvolveFrames\0",
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+WAVE_TYPE,
+HSTRING_TYPE,
+NT_FP64,
+WAVE_TYPE,
+NT_FP64,
+0,
 
-	"SymConvolveFrames\0",
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	HSTRING_TYPE,
-	NT_FP64,
-	WAVE_TYPE,
-	NT_FP64,
-	0,
+"SymConvolveFrames\0",
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+WAVE_TYPE,
+HSTRING_TYPE,
+NT_FP64,
+WAVE_TYPE,
+NT_FP64,
+0,
 
-	"MedianFrames\0",
-#if XOP_TOOLKIT_VERSION < 600
-	F_ANLYZWAVES | F_EXTERNAL,			// Function category,
-#else
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
-#endif
-	NT_FP64,
-	WAVE_TYPE,
-	HSTRING_TYPE,
-	NT_FP64,
-	NT_FP64,
-	0,
+"MedianFrames\0",
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+NT_FP64,
+WAVE_TYPE,
+HSTRING_TYPE,
+NT_FP64,
+NT_FP64,
+0,
 
-	"\0"								// NOTE: NULL required to terminate the resource.
-	END
+"\0"								// NOTE: NULL required to terminate the resource.
+END
 
