@@ -13,31 +13,32 @@
 #undef NO_IGOR_ERR      // when not defined, functions return error codes that invoke modal dialogs
 
 /* twoP custom error codes - also serve as return values from functions, after subtracting FIRST_XOP_ERR */
-#define OLD_IGOR 1 + FIRST_XOP_ERR
-#define NON_EXISTENT_WAVE 2 + FIRST_XOP_ERR
-#define INPUTNEEDS_3D_WAVE 3 + FIRST_XOP_ERR
-#define OUTPUTNEEDS_2D3D_WAVE 4 + FIRST_XOP_ERR
-#define NOTSAMEWAVETYPE 5 + FIRST_XOP_ERR
-#define NOTSAMEDIMSIZE 6 + FIRST_XOP_ERR
-#define INVALIDOUTPUTFRAME 7 + FIRST_XOP_ERR
-#define INVALIDINPUTFRAME 8 + FIRST_XOP_ERR
-#define OUTPUTNEEDS_2D_WAVE 9 + FIRST_XOP_ERR
-#define BADKERNEL 10 + FIRST_XOP_ERR
-#define INPUTNEEDS_2D3D_WAVE 11 + FIRST_XOP_ERR
-#define NO_INPUT_STRING 12 + FIRST_XOP_ERR
-#define BADFACTOR 13 + FIRST_XOP_ERR
-#define BADDSTYPE 14 + FIRST_XOP_ERR
-#define WAVEERROR_NOS 15 + FIRST_XOP_ERR
-#define OVERWRITEALERT 16 + FIRST_XOP_ERR
-#define NOTEXTWAVES 17 + FIRST_XOP_ERR
-#define BADDIMENSION 18 + FIRST_XOP_ERR
-#define NOT16OR32 19 + FIRST_XOP_ERR
-#define OUTPUTNEEDS_3D_WAVE 20 + FIRST_XOP_ERR
-#define BADWAVEINLIST 21 + FIRST_XOP_ERR
-#define BADSYMKERNEL 22 + FIRST_XOP_ERR
-#define NOTUNSIGNED 23 + FIRST_XOP_ERR
-#define MEMFAIL 24 + FIRST_XOP_ERR
-#define NUMTYPE 25 + FIRST_XOP_ERR
+#define OLD_IGOR                1 + FIRST_XOP_ERR
+#define NON_EXISTENT_WAVE       2 + FIRST_XOP_ERR
+#define INPUTNEEDS_3D_WAVE      3 + FIRST_XOP_ERR
+#define OUTPUTNEEDS_2D3D_WAVE   4 + FIRST_XOP_ERR
+#define NOTSAMEWAVETYPE         5 + FIRST_XOP_ERR
+#define NOTSAMEDIMSIZE          6 + FIRST_XOP_ERR
+#define INVALIDOUTPUTFRAME      7 + FIRST_XOP_ERR
+#define INVALIDINPUTFRAME       8 + FIRST_XOP_ERR
+#define OUTPUTNEEDS_2D_WAVE     9 + FIRST_XOP_ERR
+#define BADKERNEL               10 + FIRST_XOP_ERR
+#define INPUTNEEDS_2D3D_WAVE    11 + FIRST_XOP_ERR
+#define NO_INPUT_STRING         12 + FIRST_XOP_ERR
+#define BADFACTOR               13 + FIRST_XOP_ERR
+#define BADDSTYPE               14 + FIRST_XOP_ERR
+#define WAVEERROR_NOS           15 + FIRST_XOP_ERR
+#define OVERWRITEALERT          16 + FIRST_XOP_ERR
+#define NOTEXTWAVES             17 + FIRST_XOP_ERR
+#define BADDIMENSION            18 + FIRST_XOP_ERR
+#define NOT16OR32               19 + FIRST_XOP_ERR
+#define OUTPUTNEEDS_3D_WAVE     20 + FIRST_XOP_ERR
+#define BADWAVEINLIST           21 + FIRST_XOP_ERR
+#define BADSYMKERNEL            22 + FIRST_XOP_ERR
+#define NOTUNSIGNED             23 + FIRST_XOP_ERR
+#define MEMFAIL                 24 + FIRST_XOP_ERR
+#define NUMTYPE                 25 + FIRST_XOP_ERR
+#define INPUT_RANGE             26 + FIRST_XOP_ERR
 
 // mnemonic defines
 #define OVERWRITE 1
@@ -63,6 +64,7 @@ static inline int num_processors() {
     return info.dwNumberOfProcessors;
 }
 #endif
+
 // include native pThreads library on MacOS
 #ifdef __GNUC__
 #include <pthread.h>

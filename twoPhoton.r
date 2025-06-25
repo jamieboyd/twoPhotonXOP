@@ -77,6 +77,8 @@ resource 'STR#' (1100) {					/* custom error messages */
         "Temporary memory could not be allocated for processing",
         /* [25] NUMTYPE */
         "Can not do this function on wave of this type",
+        /* [26] INPUT_RANGE */
+        "Range of requested dimensions to process is invalid",
 	}
 };
 

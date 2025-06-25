@@ -20,7 +20,6 @@ extern "C" int GetSetNumProcessors(GetSetNumProcessorsParamsPtr p){
  Used after doing back and forth scanning, where every other line is scanned from the opposite direction.
  ----------------------------------------------------------------------------------------------------- */
 
-
 /* Template for SwapEven function
 Last Modified 2013/07/15 by Jamie Boyd */
 template <typename T> void SwapEvenT (T *dataStartPtr, CountInt numLines, CountInt lineLen) {
@@ -489,7 +488,6 @@ void* DownSampleThread (void* threadarg){
     return nullptr;
 }
 
-
 /* DownSample XOP entry function
  DownSampleParams:
  wavehandle to input wave, which is overwritten
@@ -596,12 +594,11 @@ Transposes each frame in a 3D wave (equivalent to a horizontal flip and a 90 deg
 Useful because microscope may have an odd number of  mirrors in the light path
  ------------------------------------------------------------------------------------------------------------------- */
 
-
 /* template function for transposeFrames that are not square
  Last Modified: 2025/06/23 by Jamie Boyd */
 template <typename T> void TransposeFramesT (T *dataStartPtr, T *frameCopyStart, CountInt xSize, CountInt ySize, CountInt zSize) {
     CountInt frameSize = (xSize * ySize);
-    BCInt frameBytes = (frameSize * sizeof(T));
+    CountInt frameBytes = (frameSize * sizeof(T));
     // make Pointer to end of the data
     T* dataEndPtr = dataStartPtr + (frameSize * zSize);
     // make pointer for progressing through the given data
@@ -743,7 +740,7 @@ extern "C" int TransposeFrames (TransposeFramesParamsPtr p) {
     int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
     int numDimensions;    // number of dimensions in input and output waves
     CountInt dimensionSizes[MAX_DIMENSIONS+1];    // an array used to hold the width, height, layers, and chunk sizes
-    BCInt dataOffset;    //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
+    CountInt dataOffset;    //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
     CountInt xSize;    // The length of each line in each frame
     CountInt ySize; // number of lines in each frame
     CountInt zSize; // number of frames in the stack
@@ -814,12 +811,12 @@ extern "C" int TransposeFrames (TransposeFramesParamsPtr p) {
                     throw result = NUMTYPE;
                     break;
             }
-            if (bufferPtr == NULL) throw result = NOMEM;
+            if (bufferPtr == nullptr) throw result = NOMEM;
         }
     }catch (int result){ // free any memory we may have allocated so far
-        if (bufferPtr != NULL) WMDisposePtr ((Ptr)bufferPtr);
-        if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
-        if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
+        if (bufferPtr != nullptr) WMDisposePtr ((Ptr)bufferPtr);
+        if (threadsPtr != nullptr) WMDisposePtr ((Ptr)threadsPtr);
+        if (paramArrayPtr != nullptr) WMDisposePtr ((Ptr)paramArrayPtr);
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
         return (0);
@@ -850,7 +847,6 @@ extern "C" int TransposeFrames (TransposeFramesParamsPtr p) {
     if (xSize != ySize){
         WMDisposePtr ((Ptr)bufferPtr);
         // redimension, swapping X and Ys
-        MemClear(dimensionSizes, sizeof(dimensionSizes));
         dimensionSizes [ROWS] = ySize;
         dimensionSizes [COLUMNS] = xSize;
         if (is3D){
