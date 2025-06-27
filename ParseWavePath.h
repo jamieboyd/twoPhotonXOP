@@ -14,7 +14,7 @@ typedef char WVNAME [MAX_OBJ_NAME + 1];
 void ParseWavePath (Handle fullPath, DFPATH dataFolderName, WVNAME waveName);
 waveHndl* ParseWaveListPaths (Handle pathsList, UInt16 *nWavesPtr);
 
-#define IPARSEWAVE_INF0         //to print out wavenames and paths for checking results of ParseWavePath
-// #undef IPARSEWAVE_INF0
+//#define IPARSEWAVE_INF0         //to print out wavenames and paths for checking results of ParseWavePath
+ #undef IPARSEWAVE_INF0
 
 #endif
