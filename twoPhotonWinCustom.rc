@@ -54,7 +54,7 @@ XOP_VERSION,										// Version number of host XOP system.
 DEV_SYS_CODE,										// Code for development system used to make XOP.
 0,													// Obsolete - set to zero.
 0,													// Obsolete - set to zero.
-XOP_TOOLKIT_VERSION									// XOP Toolkit version.
+XOP_TOOLKIT_VERSION,									// XOP Toolkit version.
 END
 
 1100 XOPF											// Describes functions added by XOP to IGOR.
@@ -68,7 +68,7 @@ NT_FP64,											// Return Value Type
 F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,			// Function category,
 NT_FP64,											// Return value type.
 WAVE_TYPE,											// Wave to be averaged
-HSTRING_TYPE										// output wavemname
+HSTRING_TYPE,										// output wavemname
 NT_FP64,											// multiplier
 NT_FP64,											// overwrite
 0,													// NOTE: 0 required to terminate list of parameter types.
@@ -101,7 +101,7 @@ NT_FP64,
 0,
 
 "KalmanNext\0",
-F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,,
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
 NT_FP64,
 WAVE_TYPE,
 WAVE_TYPE,
@@ -169,7 +169,7 @@ NT_FP64,
 0,
 
 "Decumulate\0"
-F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL
+F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
 NT_FP64,
 WAVE_TYPE,
 NT_FP64,
