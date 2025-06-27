@@ -670,56 +670,56 @@ void* TransposeFramesThread (void* threadarg){
     if (p->xSize == p->ySize){
         switch (p->inPutWaveType) {
             case NT_FP64:
-                TransposeSquareFramesT ((double*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                TransposeSquareFramesT (((double*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
                 break;
             case NT_FP32:
                 TransposeSquareFramesT (((float*) p->dataStartPtr) +startOffset, p->xSize, tFrames);
                 break;
             case (NT_I32 | NT_UNSIGNED):
-                TransposeSquareFramesT ((unsigned long*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                TransposeSquareFramesT (((unsigned long*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
                 break;
             case NT_I32:
-                TransposeSquareFramesT ((long*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                TransposeSquareFramesT (((long*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
                 break;
             case (NT_I16 | NT_UNSIGNED):
-                TransposeSquareFramesT ((unsigned short*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                TransposeSquareFramesT (((unsigned short*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
                 break;
             case NT_I16:
-                TransposeSquareFramesT ((short*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                TransposeSquareFramesT (((short*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
                 break;
             case (NT_I8 | NT_UNSIGNED):
-                TransposeSquareFramesT ((unsigned char*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                TransposeSquareFramesT (((unsigned char*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
                 break;
             case NT_I8:
-                TransposeSquareFramesT ((char*) p->dataStartPtr + startOffset, p->xSize, tFrames);
+                TransposeSquareFramesT (((char*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
                 break;
         }
     }else{
-        CountInt bufferOffset =p->ti * frameSize;
+        CountInt bufferOffset =p->ti * frameSize; // this is in points, not bytes.
         switch (p->inPutWaveType) {
             case NT_FP64:
-                TransposeFramesT ((double*) p->dataStartPtr + startOffset, (double*) p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                TransposeFramesT (((double*) p->dataStartPtr) + startOffset, ((double*) p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
                 break;
             case NT_FP32:
-                TransposeFramesT ((float*) p->dataStartPtr + startOffset, (float*) p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                TransposeFramesT (((float*) p->dataStartPtr) + startOffset, ((float*) p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
                 break;
             case (NT_I32 | NT_UNSIGNED):
-                TransposeFramesT ((unsigned long*) p->dataStartPtr + startOffset, (unsigned long*) p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                TransposeFramesT (((unsigned long*) p->dataStartPtr) + startOffset, ((unsigned long*) p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
                 break;
             case NT_I32:
-                TransposeFramesT ((long*) p->dataStartPtr + startOffset, (long*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                TransposeFramesT (((long*) p->dataStartPtr) + startOffset, ((long*)p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
                 break;
             case (NT_I16 | NT_UNSIGNED):
-                TransposeFramesT ((unsigned short*) p->dataStartPtr + startOffset, (unsigned short*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                TransposeFramesT (((unsigned short*) p->dataStartPtr) + startOffset, ((unsigned short*)p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
                 break;
             case NT_I16:
-                TransposeFramesT ((short*) p->dataStartPtr + startOffset, (short*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                TransposeFramesT (((short*) p->dataStartPtr) + startOffset, ((short*)p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
                 break;
             case (NT_I8 | NT_UNSIGNED):
-                TransposeFramesT ((unsigned char*) p->dataStartPtr + startOffset, (unsigned char*) p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                TransposeFramesT (((unsigned char*) p->dataStartPtr) + startOffset, ((unsigned char*) p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
                 break;
             case NT_I8:
-                TransposeFramesT ((char*) p->dataStartPtr + startOffset, (char*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames);
+                TransposeFramesT (((char*) p->dataStartPtr) + startOffset, ((char*)p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
                 break;
         }
     }
@@ -786,22 +786,34 @@ extern "C" int TransposeFrames (TransposeFramesParamsPtr p) {
         if (xSize != ySize){ // not square frames, so need to  make a frame sized buffer
             switch (waveType) {
                 case NT_I64 | NT_UNSIGNED:
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * sizeof (UInt64));
+                    break;
                 case NT_I64:
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * sizeof (SInt64));
+                    break;
                 case NT_FP64:
-                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * 8);
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * sizeof (double));
                     break;
                 case NT_I32 | NT_UNSIGNED:
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * sizeof (UInt32));
+                    break;
                 case NT_I32:
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * sizeof (SInt32));
+                    break;
                 case NT_FP32:
-                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * 4);
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * sizeof(float));
                     break;
                 case NT_I16 | NT_UNSIGNED:
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * sizeof (UInt16));
+                    break;
                 case NT_I16:
-                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * 2);
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * sizeof (SInt16));
                     break;
                 case NT_I8 | NT_UNSIGNED:
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * sizeof (UInt8));
+                    break;
                 case NT_I8:
-                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * 1);
+                    bufferPtr = (char*)WMNewPtr (xSize * ySize * nThreads * sizeof (SInt8));
                     break;
                 default:
                     throw result = NUMTYPE;
