@@ -177,7 +177,6 @@ typedef struct DownSampleParams {
 } DownSampleParams, * DownSampleParamsPtr;
 
 typedef struct DecumulateParams {
-    double expMax;  //expected maximum counts per pixel. Used in seeing if counter has rolled over or other error
     double bitSize;   //bitsize of the counter. either 24 or 32
     waveHndl w1;
     UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.

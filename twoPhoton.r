@@ -220,7 +220,6 @@ resource 'XOPF' (1100) {
         {
             WAVE_TYPE,        //InPutWave
             NT_FP64,        // counterbits (24 or 32 are normal)
-            NT_FP64,        // expeced max counts per pixels for heuristic
         },
         
         "TransposeFrames",

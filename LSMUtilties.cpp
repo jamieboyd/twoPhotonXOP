@@ -740,7 +740,6 @@ extern "C" int TransposeFrames (TransposeFramesParamsPtr p) {
     CountInt xSize;    // The length of each line in each frame
     CountInt ySize; // number of lines in each frame
     CountInt zSize; // number of frames in the stack
-    UInt8 is3D; // need to know 2D from 3D when redimensioning
     waveHndl wavH;        // handle to the input wave
     char* dataStartPtr;    // Pointer to start of data in input wave. Need to use char for these to use WM function to get data offset
     // threading
@@ -766,10 +765,8 @@ extern "C" int TransposeFrames (TransposeFramesParamsPtr p) {
         ySize = dimensionSizes[1];
         if (numDimensions == 2){
             zSize = 1;
-            is3D = 0;
         }else{
             zSize = dimensionSizes[2];
-            is3D = 1;
         }
         // Get the offset to the data in the wave
         if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result = WAVEERROR_NOS;
@@ -872,89 +869,162 @@ extern "C" int TransposeFrames (TransposeFramesParamsPtr p) {
 /* -------------------------------Decumulate Functions--------------------------------------------------
  For photon counting, the counter keeps a running total; i.e., it accumulates. To get counts for each pixel,
  we need to subtract from the from count at each pixel the count of the pixel before it, i.e., decumulate
- Also, the first pixel in each line contains photons from flyback time, so set it to 0
+ The National Instrument boards used by twoPhoton have 24 or 32 bit counters, but we make a templated
+ version in case someone has a different use case.
  -------------------------------------------------------------------------------------------------------- */
 
-
-/* The following template is used to handle any one of the different types of wave data
- Last Modified 2013 by Jamie Boyd */
-template <typename T> void DecumulateT(T *srcWaveStart, CountInt NumPnts, UInt32 epMax, UInt32 maxCount){
-    T *srcWavePtr;
-    // set srcWavePtr to last point in wave and work backwards
-    for (srcWavePtr = srcWaveStart + NumPnts; srcWavePtr > srcWaveStart; srcWavePtr --){
-        *srcWavePtr -= *(srcWavePtr -1);
+/* If you have a 32 bit counter into an unsigned 32 bit wave, counter overflows overflows are handled automatically
+Last Modified: 2025/06/27 by Jamie Boyd*/
+void Decumulate32_32(UInt32* dataStart, UInt32 numPnts, UInt32 firstValue) {
+    UInt32* srcWavePtr;
+    for (srcWavePtr = dataStart + numPnts; srcWavePtr > dataStart; srcWavePtr --) {
+        *srcWavePtr -= *(srcWavePtr - 1);
     }
+    *srcWavePtr -= firstValue;
 }
 
 
-/****************************************************************************************************************
-Decumulate.
-typedef struct DecumulateParams
-double bitSize;   //bitsize of the counter. expected to be either 24 or 32
-waveHndl w1;  // input wave - is overwritten
-Last Modified 2025/06/13 by Jamie Boyd
-****************************************************************************************************************/
-int Decumulate (DecumulateParamsPtr p) {
+/* The following template is used to handle any one of the other different types of wave data/counter size
+combos but your wave type must be wider than your counter size.
+ Last Modified 2025/06/27 by Jamie Boyd */
+template <typename T> void DecumulateT_ (T *dataStart, CountInt NumPnts, UInt32 maxCount, UInt32 firstValue){
+    T *srcWavePtr;
+    // set srcWavePtr to last point in wave and work backwards
+    for (srcWavePtr = dataStart + NumPnts; srcWavePtr > dataStart; srcWavePtr --){
+        if (*(srcWavePtr - 1) > *srcWavePtr)              // counter rollover occurred
+            *srcWavePtr += maxCount;
+        *srcWavePtr -= *(srcWavePtr - 1);
+    }
+    if (firstValue > *srcWavePtr)
+        *srcWavePtr += maxCount;
+    *srcWavePtr -= firstValue;
+}
 
+
+/* Structure to pass data to each Decumulate thread
+ Last Modified 2025/06/27 by Jamie Boyd */
+typedef struct DecumulateThreadParams {
+    int inPutWaveType;          // WaveMetrics code for waveType
+    void* dataStartPtr;         // pointer to start of input wave, which is overwritten
+    CountInt dataSize;           // number of points 
+    CountInt zSize;             // number of frames in wave
+    UInt8 ti; // number of this thread, starting from 0
+    UInt8 tN; // total number of threads (255 "should be enough for anyone")
+} DecumulateThreadParams, * DecumulateThreadParamsPtr;
+
+/* Decumulate XOP entry function
+typedef struct DecumulateParams
+double bitSize;   //bitsize of the counter.  either 24 or 32 for NI boards, but could be something else
+waveHndl w1;  // input wave - is overwritten
+Last Modified 2025/06/27 by Jamie Boyd*/
+int Decumulate (DecumulateParamsPtr p) {
     int result = 0;    // The error returned from various Wavemetrics functions
     int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
     int numDimensions;    // number of dimensions in input and output waves
-    CountInt dimensionSizes[MAX_DIMENSIONS+1];    // an array used to hold the width, height, layers, and chunk sizes
+    //CountInt dimensionSizes[MAX_DIMENSIONS+1];    // an array used to hold the width, height, layers, and chunk sizes
     BCInt dataOffset;    //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
     waveHndl wavH;        // handle to the input wave
     CountInt numPnts;    // number of points in the wave
     char* srcWaveStart;    // Pointer to start of data in input wave. Need to use char for these to use WM function to get data offset
-    UInt32 epMax;        // expected maximum counts per pixel
-    UInt32 maxCnt;        // maximum value of counter before rollover
-
-    try{
+    UInt32 maxCnt;        // maximum value of counter before rollover.
+    // threading
+    UInt8 iThread, nThreads;
+    DecumulateThreadParamsPtr paramArrayPtr = nullptr;
+    pthread_t* threadsPtr = nullptr; // pointer to threads array
+    void* bufferPtr = nullptr;  // pointer to temp buffer for threads
+    try {
         // Get handle to input wave. Make sure it exists.
         wavH = p->w1;
         if (wavH == NIL) throw result = NON_EXISTENT_WAVE;
         //Get data type, no text waves
         waveType = WaveType(p->w1);
-        if (waveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
-        // Get number of used dimensions in wave.
-        if (MDGetWaveDimensions(wavH, &numDimensions, dimensionSizes)) throw result = WAVEERROR_NOS;
+        if (waveType == TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
         // Get the offsets to the start of the data in the wave
-        if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result=WAVEERROR_NOS;
+        if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result = WAVEERROR_NOS;
         //make pointer to stat of data
         srcWaveStart = (char*)(*wavH) + dataOffset;
         //Figure out how many points are in the wave
-        numPnts =WavePoints(wavH);
-        //get expected maximum values per pixel
-        epMax = p->expMax;
-        maxCnt = pow (2, p->bitSize);
-        //Do the decumulating
-        switch(waveType){
+        numPnts = WavePoints(wavH);
+        maxCnt = pow(2, p->bitSize) - 1;
+        UInt8 is3232 = 0;  // set if 32 bit counter with 32 bit unsigned int wave
+        nThreads = gNumProcessors;
+        // make an array of threadPramsStruct
+        paramArrayPtr = (DecumulateThreadParamsPtr)WMNewPtr(nThreads * sizeof(DecumulateThreadParams));
+        if (paramArrayPtr == nullptr) throw result = MEMFAIL;
+        // make an array of pthread_t
+        threadsPtr = (pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == nullptr) throw result = MEMFAIL;
+
+        // do some checks that wave type is wider than counter size
+
+        switch (waveType) {
         case NT_I8:
-            DecumulateT((char*)srcWaveStart,numPnts,epMax, maxCnt);
+            if (maxCnt > 127) throw result = NUMTYPE;
             break;
         case (NT_I8 | NT_UNSIGNED):
-            DecumulateT((unsigned char*)srcWaveStart,numPnts,epMax, maxCnt);
+            if (maxCnt > 255) throw result = NUMTYPE;
             break;
         case NT_I16:
-            DecumulateT((short*)srcWaveStart,numPnts,epMax, maxCnt);
+            if (maxCnt > 32767) throw result = NUMTYPE;
             break;
         case (NT_I16 | NT_UNSIGNED):
-            DecumulateT((unsigned short*)srcWaveStart,numPnts,epMax, maxCnt);
+            if (maxCnt > 65535) throw result = NUMTYPE;
             break;
         case NT_I32:
-            DecumulateT((long*)srcWaveStart,numPnts,epMax, maxCnt);
+            if (maxCnt > LONG_MAX) throw result = NUMTYPE;
             break;
-        case (NT_I32| NT_UNSIGNED):
-            DecumulateT((unsigned long*)srcWaveStart,numPnts,epMax, maxCnt);
+        case (NT_I32 | NT_UNSIGNED):
+            if (p->bitSize == 32) {
+                is3232 = 1;
+            }
+            else {
+                if (maxCnt > ULONG_MAX) throw result = NUMTYPE;
+            }
             break;
         case NT_FP32:
-            DecumulateT((float*)srcWaveStart,numPnts,epMax, maxCnt);
-            break;
-        case NT_FP64:
-            DecumulateT((double*)srcWaveStart, numPnts,epMax, maxCnt);
-            break;
-        default:    // Unknown data type - possible in a future version of Igor.
-            throw result = NT_FNOT_AVAIL;
+            if (maxCnt > 16777216)  throw result = NUMTYPE;
             break;
         }
+    }
+    catch (int result) { // free any memory we may have allocated so far  
+        if (threadsPtr != nullptr) WMDisposePtr((Ptr)threadsPtr);
+        if (paramArrayPtr != nullptr) WMDisposePtr((Ptr)paramArrayPtr);
+        p->result = (double)(result - FIRST_XOP_ERR);
+#ifdef NO_IGOR_ERR
+        return (0);
+#else
+        return (result);
+#endif
+    }
+ 
+    CountInt tPoints = (numPnts / nThreads);  // number of points to do per thread
+
+
+    CountInt startOffset = p->ti * frameSize * tFrames;   // starting position for this thread
+    if (p->ti == p->tN - 1) tFrames += (p->zSize % p->tN); // the last thread gets any left-over frames
+
+    // fill the array of paramater structs
+
+    for (iThread = 0; iThread < nThreads; iThread++) {
+        paramArrayPtr[iThread].inPutWaveType = waveType;
+        paramArrayPtr[iThread].dataStartPtr = (void*)(srcWaveStart + ;
+        if (xSize != ySize) paramArrayPtr[iThread].bufferPtr = bufferPtr;
+        paramArrayPtr[iThread].xSize = xSize;
+        paramArrayPtr[iThread].ySize = ySize;
+        paramArrayPtr[iThread].zSize = zSize;
+        paramArrayPtr[iThread].ti = iThread; // number of this thread, starting from 0
+        paramArrayPtr[iThread].tN = nThreads; // total number of threads
+    }
+    // create the threads
+    for (iThread = 0; iThread < nThreads; iThread++) {
+        pthread_create(&threadsPtr[iThread], NULL, TransposeFramesThread, (void*)&paramArrayPtr[iThread]);
+    }
+    // Wait till all the threads are finished
+    for (iThread = 0; iThread < nThreads; iThread++) {
+        pthread_join(threadsPtr[iThread], NULL);
+    }
+
+
         WaveHandleModified(wavH);            // Inform Igor that we have changed the input wave.
         p->result = result;        // return 0 for success
         return result;
