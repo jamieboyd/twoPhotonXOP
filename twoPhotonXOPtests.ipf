@@ -8,45 +8,8 @@ Menu "Macros"
 End
 
 
-function closeTwoPGraphs()
-	string graphs =  WinList("twoPxop_*", ";", "WIN:1" )
-	variable iGraph, nGraphs = itemsinlist (graphs, ";")
-	for (iGraph = 0; iGraph < nGraphs; iGraph += 1)
-		doWindow/k $StringFromList(iGraph, graphs, ";")
-	endfor
-end
 
-
-function/wave makeKernel (width)
-	variable width
-	
-	if (mod (width, 2) ==0)
-		width +=1
-	endif
-	make/FREE/o/s/n= (width, width) gWave
-	setscale/I x -1,1, "m" gWave
-	setscale/I y -1, 1, "m" gWave
-	gWave = Gauss (x, 0, 0.5, y, 0, 0.5)
-	variable sumVal =  sum (gwave)
-	gwave /= sumVal
-	return gwave
-end
-
-
-function/wave makeSymkernel (width)
-	variable width
-	
-	if (mod (width, 2) ==0)
-		width +=1
-	endif
-	make/FREE/o/s/n= (width) gWave
-	setscale/I x -1,1, "m" gWave
-	gWave = Gauss (x, 0, 0.5)
-	variable sumVal =  sum (gwave)
-	gwave /= sumVal
-	return gwave
-end
-
+// runs a battery of test functions
 function test_twoPhotonXOP ()
 	// make sure XOP is loaded
 	string IgorKind= stringbykey ("IGORKIND", igorinfo (0),":", ";")
@@ -66,10 +29,10 @@ function test_twoPhotonXOP ()
 	//timer stuff
 	variable testNum =0
 	Variable timerRefNum, timerMicroSeconds
-	make/o/d/n=100 root:testScores
+	make/o/d/n=27 root:testScores
 	WAVE testScores = root:testScores
 	setscale d 0, 0, "s" testScores 
-	make/o/t/n=100 root:testType
+	make/o/t/n=27 root:testType
 	WAVE/T testType = root:testType
 	// How many cores?
 	printf "%d processor cores are available to twoPhotonXOP.\r", GetSetNumProcessors()
@@ -78,7 +41,7 @@ function test_twoPhotonXOP ()
 	// make a large-ish stack 
 	make/o/w/u/n =(1000,500,300) root:theStack
 	WAVE theStack = root:theStack
-	// mimic a noisy 12 bit A/D
+	// mimic a noisy 12 bit A/D image stack
 	MultiThread /NT=(ThreadProcessorCount) theStack = 2^11 + (2^10) * (sin ((x-z)/60) * cos ((y+z)/40)) + enoise (2^10)
 	
 	// display stack
@@ -121,10 +84,9 @@ function test_twoPhotonXOP ()
 	timerMicroSeconds = StopMSTimer(timerRefNum)
 	testScores [testNum] = timerMicroSeconds/1E6
 	testNum +=1
-	doupdate;sleep/S 1
+	doupdate;sleep/S 2
 	
-	
-	DoAlert /T="Testing twoPhotonXOP" 0, "Kalman Averaging"
+	//DoAlert /T="Testing twoPhotonXOP" 0, "Kalman Averaging"
 	// close all 2p graph windows
 	closeTwoPGraphs()
 	
@@ -296,8 +258,10 @@ function test_twoPhotonXOP ()
 		doupdate;sleep/S 0.5
 	endfor
 	testNum +=1
-			
-	DoAlert /T="Testing twoPhotonXOP" 0, "Project Frames"
+	sleep/S 2
+	
+	//DoAlert /T="Testing twoPhotonXOP" 0, "Project Frames"
+	
 	// close all 2p graph windows
 	closeTwoPGraphs()
 	doUpdate
@@ -350,78 +314,139 @@ function test_twoPhotonXOP ()
 	testScores [testNum] = timerMicroSeconds/1E6
 	testNum += 1
 	DoWindow/T twoPxop_Convole_Out "Median Frames Width = 5"
-	doupdate;sleep/S 1
+	doupdate;sleep/S 2
 	
-	DoAlert /T="Testing twoPhotonXOP" 0, "Convolve Frames"
+	//DoAlert /T="Testing twoPhotonXOP" 0, "Convolve Frames"
+	closeTwoPGraphs()
+	
 	
 	// LSM utilities
-	WAVE convolveOut = root:Convolve_Out
+	// swap even
+	execute "twoPxop_theStack()";doupdate;doupdate;sleep/S 0.5
 	testType [testNum]="SwapEven x 2"
 	testScores [testNum] =0
 	timerRefNum = StartMSTimer
-	swapEven (convolveOut)
+	swapEven (theStack)
 	timerMicroSeconds = StopMSTimer(timerRefNum)
 	testScores [testNum] += timerMicroSeconds/1E6
-	DoWindow/T twoPxop_Convole_Out "Swap Even Once"
+	DoWindow/T twoPxop_theStack "Swap Even Once"
 	doupdate;sleep/S 2
 	timerRefNum = StartMSTimer
-	swapEven (convolveOut)
+	swapEven (theStack)
 	timerMicroSeconds = StopMSTimer(timerRefNum)
 	testScores [testNum] += timerMicroSeconds/1E6
 	testNum += 1
-	DoWindow/T twoPxop_Convole_Out "Swap Even Twice"
+	DoWindow/T twoPxop_theStack "Swap Even Twice"
 	doupdate;sleep/S 2
 	
+	// transpose frames
 	testType [testNum]="Transpose Frames x 2"
 	testScores [testNum] =0
 	timerRefNum = StartMSTimer
-	TransposeFrames(convolveOut)
+	TransposeFrames(theStack)
 	timerMicroSeconds = StopMSTimer(timerRefNum)
 	testScores [testNum] += timerMicroSeconds/1E6
-	DoWindow/T twoPxop_Convole_Out "Transpose Frames Once"
+	DoWindow/T twoPxop_theStack "Transpose Frames Once"
 	doupdate;sleep/S 2
 	timerRefNum = StartMSTimer
-	TransposeFrames(convolveOut)
+	TransposeFrames(theStack)
 	timerMicroSeconds = StopMSTimer(timerRefNum)
 	testScores [testNum] += timerMicroSeconds/1E6
 	testNum += 1
-	DoWindow/T twoPxop_Convole_Out "Transpose Frames Twice"
+	DoWindow/T twoPxop_theStack "Transpose Frames Twice"
 	doupdate;sleep/S 2
-	DoAlert /T="Testing twoPhotonXOP" 0, "LSM utilities"
 	
-end
-
-	
-	
-function tse ()
-// LSM utilities
-	WAVE convolveOut = root:Convolve_Out
-	variable timerMicroSeconds
-	//testType [testNum]="SwapEven x 2"
-	//testScores [testNum] =0
-	timerMicroSeconds =0
-	variable timerRefNum = StartMSTimer
-	TransposeFrames (convolveOut)
-	timerMicroSeconds += StopMSTimer(timerRefNum)
-	//testScores [testNum] += timerMicroSeconds/1E6
-	DoWindow/T twoPxop_Convole_Out "Transpose Once"
-	doupdate;sleep/S 2
+	//Decumulate
+	closeTwoPGraphs()
+	AccData(12, (2^4 + 2^6), 4)
+	execute "twoPxop_Decumulate()"
+	doupdate; sleep/S 0.5
+	testType [testNum]="Decumulate"
 	timerRefNum = StartMSTimer
-	TransposeFrames (convolveOut)
-	timerMicroSeconds += StopMSTimer(timerRefNum)
-	//testScores [testNum] += timerMicroSeconds/1E6
-	//testNum += 1
-	DoWindow/T twoPxop_Convole_Out "Transpose Twice"
+	Decumulate (theStack, 12)
+	timerMicroSeconds = StopMSTimer(timerRefNum)
+	testScores [testNum] += timerMicroSeconds/1E6
+	testNum += 1
+	ModifyImage/W=twoPxop_Decumulate theStack ctab= {*,*,Rainbow,1}
 	doupdate;sleep/S 2
-	print timerMicroSeconds/1E6
-end
+	
+	//DoAlert /T="Testing twoPhotonXOP" 0, "LSM utilities"
+	
+	closeTwoPGraphs()
+	
+	KillWaves/z root:theStack,root:Convolve_Out,root:KalmanAllFrames_out,root:KalmanSpecFrames_out
+	KillWaves/Z root:KalmanWaveToFrame_out,root:ProjectFrames_output_x,root:ProjectFrames_output_y,root:ProjectFrames_output_z
+	testType [testNum] = "Total Time"
+	variable timeScore = sum (testScores)
+	testScores [testNum] = timeScore
+	edit testType, testScores
 	
 	
+	
 end
 
 
+// makes a 2D Gaussian kernel used to test convolve function
+function/wave makeKernel (width)
+	variable width
+	
+	if (mod (width, 2) ==0)
+		width +=1
+	endif
+	make/FREE/o/s/n= (width, width) gWave
+	setscale/I x -1,1, "m" gWave
+	setscale/I y -1, 1, "m" gWave
+	gWave = Gauss (x, 0, 0.5, y, 0, 0.5)
+	variable sumVal =  sum (gwave)
+	gwave /= sumVal
+	return gwave
+end
+
+// makes a 1D Gaussian kernel used to test symetrical convolve functions
+function/wave makeSymkernel (width)
+	variable width
+	
+	if (mod (width, 2) ==0)
+		width +=1
+	endif
+	make/FREE/o/s/n= (width) gWave
+	setscale/I x -1,1, "m" gWave
+	gWave = Gauss (x, 0, 0.5)
+	variable sumVal =  sum (gwave)
+	gwave /= sumVal
+	return gwave
+end
 
 
+// makes am image stack with simulated counter output which will overflow
+// add some noise and make it look like photon countng from an image with one side brighter than the other
+function AccData(counterSize, waveNumType, scaler)
+	variable counterSize
+	variable waveNumType
+	variable scaler
+	WAVE theStack = root:theStack
+	variable xSize = dimsize (theStack, 0)
+	variable ySize =  dimsize (theStack, 1)
+	variable zSize = dimsize (theStack, 2)
+	variable nPoints = xSize * ySize * zSize
+	redimension/n=(nPoints, 0,0)/Y=(waveNumType) theStack
+	theStack [0]=4 
+	theStack [1,*] = (theStack [p-1] + scaler + enoise (scaler) + abs(enoise(mod (p, (xSize))/(2*scaler)))) & (2^(counterSize)-1)
+	redimension/n=(xSize, ySize, zSize) theStack
+	
+end
+
+// closes graph windows used by test
+function closeTwoPGraphs()
+	string graphs =  WinList("twoPxop_*", ";", "WIN:1" )
+	variable iGraph, nGraphs = itemsinlist (graphs, ";")
+	for (iGraph = 0; iGraph < nGraphs; iGraph += 1)
+		doWindow/k $StringFromList(iGraph, graphs, ";")
+	endfor
+end
+
+
+// macros to display graphs used by the tests
 Window twoPxop_theStack() : Graph
 	PauseUpdate; Silent 1		// building window...
 	Display /W=(0,66,528,394) as "3D Image Stack"
@@ -432,6 +457,22 @@ Window twoPxop_theStack() : Graph
 	ModifyGraph mirror=2
 	ModifyGraph nticks(left)=7,nticks(top)=10
 	ModifyGraph font="Helvetica"
+	ModifyGraph minor=1
+	ModifyGraph fSize=9
+	ModifyGraph standoff=0
+	ModifyGraph tkLblRot(left)=90
+	ModifyGraph btLen=3
+	ModifyGraph tlOffset=-2
+EndMacro
+
+Window twoPxop_KalmanWaveToFrame_out() : Graph
+	PauseUpdate; Silent 1		// building window...
+	Display /W=(529,423,1057,751) as "Kalman Wave To Frame Output"
+	AppendImage/T KalmanWaveToFrame_out
+	ModifyImage KalmanWaveToFrame_out ctab= {0,4096,Rainbow,1}
+	ModifyGraph margin(left)=14,margin(bottom)=14,margin(top)=14,margin(right)=14,gFont="Helvetica"
+	ModifyGraph mirror=2
+	ModifyGraph nticks(left)=7,nticks(top)=10
 	ModifyGraph minor=1
 	ModifyGraph fSize=9
 	ModifyGraph standoff=0
@@ -462,22 +503,6 @@ Window twoPxop_KalmanSpecFrames_out() : Graph
 	Display /W=(529,66,1057,394) as "Kalman Spec Frames Output"
 	AppendImage/T KalmanSpecFrames_out
 	ModifyImage KalmanSpecFrames_out ctab= {0,4096,Rainbow,1}
-	ModifyGraph margin(left)=14,margin(bottom)=14,margin(top)=14,margin(right)=14,gFont="Helvetica"
-	ModifyGraph mirror=2
-	ModifyGraph nticks(left)=7,nticks(top)=10
-	ModifyGraph minor=1
-	ModifyGraph fSize=9
-	ModifyGraph standoff=0
-	ModifyGraph tkLblRot(left)=90
-	ModifyGraph btLen=3
-	ModifyGraph tlOffset=-2
-EndMacro
-
-Window twoPxop_KalmanWaveToFrame_out() : Graph
-	PauseUpdate; Silent 1		// building window...
-	Display /W=(529,423,1057,751) as "Kalman Wave To Frame Output"
-	AppendImage/T KalmanWaveToFrame_out
-	ModifyImage KalmanWaveToFrame_out ctab= {0,4096,Rainbow,1}
 	ModifyGraph margin(left)=14,margin(bottom)=14,margin(top)=14,margin(right)=14,gFont="Helvetica"
 	ModifyGraph mirror=2
 	ModifyGraph nticks(left)=7,nticks(top)=10
@@ -578,3 +603,20 @@ Window twoPxop_Convole_Out() : Graph
 	SetAxis/A/R left
 EndMacro
 
+Window twoPxop_Decumulate() : Graph
+	PauseUpdate; Silent 1		// building window...
+	Display /W=(24,102,943,665) as "Decumulate"
+	AppendImage/T theStack
+	ModifyImage theStack ctab= {0,4095,Rainbow,1}
+	ModifyGraph margin(left)=14,margin(bottom)=14,margin(top)=14,margin(right)=14,gFont="Helvetica"
+	ModifyGraph width={Plan,1,top,left}
+	ModifyGraph mirror=2
+	ModifyGraph nticks(left)=7,nticks(top)=10
+	ModifyGraph font="Helvetica"
+	ModifyGraph minor=1
+	ModifyGraph fSize=9
+	ModifyGraph standoff=0
+	ModifyGraph tkLblRot(left)=90
+	ModifyGraph btLen=3
+	ModifyGraph tlOffset=-2
+EndMacro
