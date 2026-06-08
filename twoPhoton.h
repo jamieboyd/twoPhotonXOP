@@ -1,5 +1,5 @@
 /*
-    twoP.h -- equates for twoP XOP
+    twoPhoton.h
 */
 #ifndef TWOPHOTON_H_
 #define TWOPHOTON_H_
@@ -7,7 +7,6 @@
 #include "ParseWavePath.h"              // Utility to parse strings into data folder paths and wave names
 #include "XOPResources.h"                // Contains definition of XOP_TOOLKIT_VERSION
 #include "XOPStandardHeaders.h"            // Include ANSI headers, Mac headers, IgorXOP.h, XOP.h and XOPSupport.h
-
 
 //#define NO_IGOR_ERR   // when defined, all functions return 0 to avoid modal dialogs
 #undef NO_IGOR_ERR      // when not defined, functions return error codes that invoke modal dialogs
@@ -89,7 +88,7 @@ typedef struct KalmanAllFramesParams {
     waveHndl inPutWaveH;    // handle to a 3D input wave
     UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
-}KalmanAllFramesParams, *KalmanAllFramesParamsPtr;
+}KalmanAllFramesParams, * KalmanAllFramesParamsPtr;
 
 typedef struct KalmanSpecFramesParams {
     double multiplier;    // Multiplier for 16 bit waves containing less than 16 bits of data
@@ -158,9 +157,9 @@ typedef struct ProjectSliceParams {
 }ProjectSliceParams, * ProjectSliceParamsPtr;
 
 // LSM Utilities
-typedef struct GetSetNumProcessorsParams{
+typedef struct GetSetNumProcessorsParams {
     double result;
-}GetSetNumProcessorsParams, *GetSetNumProcessorsParamsPtr;
+}GetSetNumProcessorsParams, * GetSetNumProcessorsParamsPtr;
 
 typedef struct SwapEvenParams {
     waveHndl w1;
@@ -237,4 +236,5 @@ extern "C" int  ConvolveFrames(ConvolveFramesParamsPtr p);
 extern "C" int  SymConvolveFrames(ConvolveFramesParamsPtr p);
 extern "C" int  MedianFrames(MedianFramesParamsPtr p);
 template <typename T> T medianT(UInt32 n, T* dataStrtPtr);
+
 #endif

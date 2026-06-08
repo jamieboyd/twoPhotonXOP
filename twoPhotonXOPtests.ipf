@@ -4,7 +4,7 @@
 
 
 Menu "Macros"
-	"test twoPhotonXOP", test_twoPhotonXOP ()
+	"test twoPhoton XOP", test_twoPhotonXOP ()
 End
 
 
@@ -12,7 +12,7 @@ End
 // runs a battery of test functions
 function test_twoPhotonXOP ()
 	// make sure XOP is loaded
-	string IgorKind= stringbykey ("IGORKIND", igorinfo (0),":", ";")
+	string IgorKind= removeEnding(stringbykey ("IGORKIND", igorinfo (0),":", ";"), " demo")
 	string XOPlist = igorinfo (10)
 	if (cmpstr (IgorKind, "pro64") == 0)
 		if (WhichListItem("twoPhoton64", XOPlist, ";") == -1)

@@ -1,6 +1,6 @@
-﻿//{{NO_DEPENDENCIES}}
+//{{NO_DEPENDENCIES}}
 // Microsoft Developer Studio generated include file.
-// Used by twoPhoton.rc
+// Used by twoPhotonXOP.rc
 //
 
 // Next default values for new objects

@@ -1,4 +1,4 @@
-#include "twoPhoton.h"
+#include "twoPhotonXOP.h"
 
 /* ------------------------------Minimum/Maximum/Avg/Median Intensity Projections----------------------
  Code for making Minimum/Maximum/Avg/Median Intensity Projections along X,Y, and Z axes

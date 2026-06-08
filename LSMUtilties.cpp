@@ -1,5 +1,5 @@
-#include "twoPhoton.h"
-#include "math.h"
+#include "twoPhotonXOP.h"
+#include <math.h>
 
 /* ------------------------------LSM Utilities --------------------------------------------------
 utility functions specialized for Laser Scanning Microscope data acquisition

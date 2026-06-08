@@ -24,8 +24,7 @@
     <Library Include="..\..\XOPSupport\IGOR64.lib" />
     <Library Include="..\..\XOPSupport\VC\XOPSupport.lib" />
     <Library Include="..\..\XOPSupport\VC\XOPSupport64.lib" />
-    <Library Include="..\..\XOPSupport\pthreadVC2.lib" />
-    <Library Include="..\..\XOPSupport\pthreadVC264.lib" />
+    <Library Include="..\..\XOPSupport\pthread_static_lib.lib" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\twoPhoton.cpp">
@@ -48,19 +47,22 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\twoPhoton.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\ParseWavePath.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\pthread.h">
+    <ClInclude Include="..\twoPhoton.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\sched.h">
+    <ClInclude Include="..\..\XOPSupport\pthread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\semaphore.h">
+    <ClInclude Include="..\..\XOPSupport\sched.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\XOPSupport\semaphore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\XOPSupport\_ptw32.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
