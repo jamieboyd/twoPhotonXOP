@@ -1,4 +1,4 @@
-#include "twoPhotonXOP.h"
+#include "twoPhoton.h"
 /* ---------------------------------------------Kalman----------------------------------------------------------
  Code for Kalman averaging of frames in a 3d wave, 2d wave, or a list of waves
  Last Modified 2025/06/23 by Jamie Boyd

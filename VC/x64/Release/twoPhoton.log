@@ -1048,7 +1048,6 @@ C:\Users\jadob\OneDrive\Documents\WaveMetrics\XOP Toolkit 8\IgorXOPs8\twoPhotonX
 C:\Users\jadob\OneDrive\Documents\WaveMetrics\XOP Toolkit 8\IgorXOPs8\twoPhotonXOP\LSMUtilties.cpp(905,20): warning C4244:         [
 C:\Users\jadob\OneDrive\Documents\WaveMetrics\XOP Toolkit 8\IgorXOPs8\twoPhotonXOP\LSMUtilties.cpp(905,20): warning C4244:             T=UInt8
 C:\Users\jadob\OneDrive\Documents\WaveMetrics\XOP Toolkit 8\IgorXOPs8\twoPhotonXOP\LSMUtilties.cpp(905,20): warning C4244:         ]
-  ParseWavePath.cpp
   ProjectImage.cpp
 C:\Users\jadob\OneDrive\Documents\WaveMetrics\XOP Toolkit 8\IgorXOPs8\twoPhotonXOP\ProjectImage.cpp(414,21): warning C4244: 'initializing': conversion from 'double' to 'CountInt', possible loss of data
 C:\Users\jadob\OneDrive\Documents\WaveMetrics\XOP Toolkit 8\IgorXOPs8\twoPhotonXOP\ProjectImage.cpp(415,19): warning C4244: 'initializing': conversion from 'double' to 'CountInt', possible loss of data
@@ -1360,7 +1359,6 @@ C:\Users\jadob\OneDrive\Documents\WaveMetrics\XOP Toolkit 8\IgorXOPs8\twoPhotonX
               T=float
           ]
   
-  twoPhoton.cpp
   Generating Code...
   pthread_static_lib.lib(create.obj) : MSIL .netmodule or module compiled with /GL found; restarting link with /LTCG; add /LTCG to the link command line to improve linker performance
      Creating library x64\Release\twoPhoton64.lib and object x64\Release\twoPhoton64.exp

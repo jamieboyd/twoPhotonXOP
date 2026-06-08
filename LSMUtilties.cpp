@@ -1,4 +1,4 @@
-#include "twoPhotonXOP.h"
+#include "twoPhoton.h"
 #include <math.h>
 
 /* ------------------------------LSM Utilities --------------------------------------------------

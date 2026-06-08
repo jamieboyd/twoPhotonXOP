@@ -1,4 +1,4 @@
-#include "twoPhotonXOP.h"
+#include "twoPhoton.h"
 /* ----------------------------------------Filter ------------------------------------------------------------------
  Code for filtering waves with 2D convolution kernels - arbitrary, symetrical, or median
  Last Modified 2025/06/23 by Jamie Boyd
