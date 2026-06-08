@@ -60,7 +60,7 @@ ehthumbs.db
 #build folder
 build/
 *.vsidx
-VC/.vs/twoPhoton/v17/.suo
+VC/.vs/twoPhoton/v18/ich/
 *.db
 *.vsidx
 *.db-shm
