@@ -1,7 +1,7 @@
 #include "twoPhoton.h"
 /* ---------------------------------------------Kalman----------------------------------------------------------
  Code for Kalman averaging of frames in a 3d wave, 2d wave, or a list of waves
- Last Modified 2025/06/23 by Jamie Boyd
+ Last Modified 2026/08/02 by Jamie Boyd - using native windows threading instead of pThreadsWin32
  ---------------------------------------------------------------------------------------------------------------*/
 
 /* The following template is used to handle any one of the 8 types of wave data, for any of the three Kalman averaging functions
@@ -88,7 +88,12 @@ typedef struct KalmanThreadParams{
 
 /* Each thread to do Kalman averaging starts with this function
  Last Modified 2013/07/16 by Jamie Boyd */
+#ifdef __GNUC__
 void* KalmanThread (void* threadarg){
+#endif
+#ifdef _WINDOWS_
+    DWORD WINAPI KalmanThread(LPVOID threadarg) {
+#endif
 	struct KalmanThreadParams* p;
 	p = (struct KalmanThreadParams*) threadarg;
 	CountInt xSize= p->xSize;
@@ -165,7 +170,12 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
 	CountInt zSize;
 	UInt8 iThread, nThreads;
     KalmanThreadParamsPtr paramArrayPtr = NULL;
+#ifdef __GNUC__
     pthread_t* threadsPtr = NULL;
+#endif
+#ifdef  _WINDOWS_
+    HANDLE* threadsPtr = NULL;
+#endif
     try {
 		// Get handle to input wave.
 		inPutWaveH = p ->inPutWaveH;
@@ -227,8 +237,13 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
         // make array of parameter structures
         paramArrayPtr = (KalmanThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanThreadParams));
         if (paramArrayPtr == NULL) throw result = MEMFAIL;
-        // make an array of pthread_t
+        // make an array of pthread_t or HANDLE
+#ifdef __GNUC__
         threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+#endif
+#ifdef _WINDOWS_
+        HANDLE* threadsPtr = (HANDLE*)WMNewPtr(nThreads * sizeof(HANDLE));
+#endif
         if (threadsPtr == NULL) throw result = MEMFAIL;
         // catch error before starting threads
 	}catch (int result){
@@ -256,6 +271,7 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
         paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
         paramArrayPtr[iThread].tN =nThreads; // total number of threads
     }
+#ifdef __GNUC__
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, KalmanThread, (void *) &paramArrayPtr[iThread]);
@@ -264,6 +280,19 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_join (threadsPtr[iThread], NULL);
     }
+#endif
+
+#ifdef _WINDOWS_
+    // create the threads
+    for (iThread = 0; iThread < nThreads; iThread++){
+        threadsPtr[iThread] = CreateThread (NULL, 0, (LPTHREAD_START_ROUTINE)KalmanThread, (LPVOID)&paramArrayPtr[iThread], 0, NULL);
+    }
+    WaitForMultipleObjects(nThreads, threadsPtr, TRUE, INFINITE);
+    for (int iThread = 0; iThread < nThreads; iThread++){
+        CloseHandle(threadsPtr[iThread]);
+    }
+#endif
+    
     WMDisposePtr ((Ptr)threadsPtr);      // free memory for pThreads Array
     WMDisposePtr ((Ptr)paramArrayPtr);  // Free paramaterArray memory
     WMDisposeHandle(p->outPutPath);    // dispose passed in string paramater
@@ -305,7 +334,12 @@ extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
 	float multiplier = (float)(p->multiplier);	// multiplier for integer waves containing less than their full range of data
     UInt8 iThread, nThreads;
     KalmanThreadParamsPtr paramArrayPtr = NULL;
+#ifdef __GNUC__
     pthread_t* threadsPtr = NULL;
+#endif
+#ifdef _WINDOWS_
+    HANDLE* threadsPtr = NULL;
+#endif
     // try/catch before starting threads
 	try {
 		// Get handles to input wave and kernel. Make sure both waves exist.
@@ -382,6 +416,7 @@ extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
         paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
         paramArrayPtr[iThread].tN =nThreads; // total number of threads
     }
+#ifdef __GNUC__
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, KalmanThread, (void *) &paramArrayPtr[iThread]);
@@ -390,13 +425,23 @@ extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_join (threadsPtr[iThread], NULL);
     }
+#endif
+#ifdef _WINDOWS_
+    // create the threads
+    for (iThread = 0; iThread < nThreads; iThread++){
+        threadsPtr[iThread] = CreateThread (NULL, 0, (LPTHREAD_START_ROUTINE)KalmanThread, (LPVOID)&paramArrayPtr[iThread], 0, NULL);
+    }
+    WaitForMultipleObjects(nThreads, threadsPtr, TRUE, INFINITE);
+    for (int iThread = 0; iThread < nThreads; iThread++){
+        CloseHandle(threadsPtr[iThread]);
+    }
+#endif
     WMDisposePtr ((Ptr)threadsPtr);         // free memory for pThreads Array
     WMDisposePtr ((Ptr)paramArrayPtr);      // Free paramaterArray memory
     WaveHandleModified(outPutWaveH);        // Inform Igor that we have changed the output wave.
     p -> result = (0);
     return (0);
 }
-
 
 /* KalmanWaveToFrame XOP entry function
  Collapses a 3D input wave into a single 2D frame. You can get the same result with KalmanAllFrames by
@@ -419,7 +464,13 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
     // threading
 	UInt8 iThread, nThreads;
     KalmanThreadParamsPtr paramArrayPtr = NULL;
-    pthread_t* threadsPtr = NULL;
+    //**** declare pthreads or HANDLE pointer
+    #ifdef __GNUC__
+        pthread_t* threadsPtr = NULL;
+    #endif
+    #ifdef  _WINDOWS_
+        HANDLE* threadsPtr = NULL;
+    #endif
 	try {
 		// Get handle to input wave. Make sure input wave exists.
 		inPutWaveH = p->inPutWaveH;
@@ -441,7 +492,13 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
         // make an array of parameter structures
         paramArrayPtr = (KalmanThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanThreadParams));
         if (paramArrayPtr == NULL) throw result = MEMFAIL;
-        // make an array of pthread_t
+        // **** make array of threads
+        #ifdef __GNUC__
+                threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        #endif
+        #ifdef _WINDOWS_
+                HANDLE* threadsPtr = (HANDLE*)WMNewPtr(nThreads * sizeof(HANDLE));
+        #endif
         threadsPtr = (pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
         if (threadsPtr == NULL) throw result = MEMFAIL;
 	}catch (int result){
@@ -468,7 +525,7 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
         paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
         paramArrayPtr[iThread].tN =nThreads; // total number of threads
     }
-    // create the threads
+#ifdef __GNUC__
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, KalmanThread, (void *) &paramArrayPtr[iThread]);
     }
@@ -476,6 +533,17 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_join (threadsPtr[iThread], NULL);
     }
+#endif
+#ifdef _WINDOWS_
+    // create the threads
+    for (iThread = 0; iThread < nThreads; iThread++){
+        threadsPtr[iThread] = CreateThread (NULL, 0, (LPTHREAD_START_ROUTINE)KalmanThread, (LPVOID)&paramArrayPtr[iThread], 0, NULL);
+    }
+    WaitForMultipleObjects(nThreads, threadsPtr, TRUE, INFINITE);
+    for (int iThread = 0; iThread < nThreads; iThread++){
+        CloseHandle(threadsPtr[iThread]);
+    }
+#endif
     WMDisposePtr ((Ptr)threadsPtr);     // free memory for pThreads Array
     WMDisposePtr ((Ptr)paramArrayPtr);  // Free paramaterArray memory
 	// Redimension wave
@@ -488,7 +556,6 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
 	p -> result = (0);
 	return (0);
 }
-
 
 /* Template for handling all data types for KalmanList function
 Last Modified 2013/07/16 by Jamie Boyd  */
@@ -565,7 +632,12 @@ typedef struct KalmanListThreadParams{
 
 /* Each thread to average a list of waves starts with this function
 Last Modified 2013/07/16 by Jamie Boyd */
-void* KalmanListThread (void* threadarg){
+#ifdef __GNUC__
+    void* KalmanListThread (void* threadarg){
+#endif
+#ifdef _WINDOWS_
+DWORD WINAPI KalmanListThread(LPVOID threadarg) {
+#endif
 	struct KalmanListThreadParams* p;
 	p = (struct KalmanListThreadParams*) threadarg;
 	CountInt nPnts= p->nPnts;
@@ -606,7 +678,6 @@ void* KalmanListThread (void* threadarg){
 	return 0;
 }
 
-
 /* KalmanList XOP entry function
  Averages a semicolon-separated list of waves. Each wave must have same data type and same dimensions. This is not used by the
  twoPhoton acquisition code so we print some more information in the error cases with XOPNotice
@@ -637,7 +708,13 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
 	CountInt nPnts;
     UInt8 iThread, nThreads;
     KalmanListThreadParamsPtr paramArrayPtr = nullptr;
-    pthread_t* threadsPtr = nullptr;
+    //**** declare pthreads or HANDLE pointer
+    #ifdef __GNUC__
+        pthread_t* threadsPtr = NULL;
+    #endif
+    #ifdef  _WINDOWS_
+        HANDLE* threadsPtr = NULL;
+    #endif
 	try {
 		// Check that input string exists
 		if (WMGetHandleSize (p->inPutList) == 0) throw result = NON_EXISTENT_WAVE;
@@ -766,8 +843,14 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
         nThreads = gNumProcessors;
         paramArrayPtr = (KalmanListThreadParamsPtr)WMNewPtr(nThreads * sizeof(KalmanListThreadParams));
         if (paramArrayPtr == nullptr) throw result = MEMFAIL;
-        // make an array of pthread_t
+       
+        // **** make array of threads
+#ifdef __GNUC__
         threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+#endif
+#ifdef _WINDOWS_
+        HANDLE* threadsPtr = (HANDLE*)WMNewPtr(nThreads * sizeof(HANDLE));
+#endif
         if (threadsPtr == nullptr) throw result = MEMFAIL;
 	}catch (int result){
         if (threadsPtr != nullptr) WMDisposePtr((Ptr)threadsPtr);
@@ -791,14 +874,25 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
 		paramArrayPtr[iThread].tN =nThreads; // total number of threads
 	}
     
-	// create the threads
-	for (iThread = 0; iThread < nThreads; iThread++){
-		pthread_create (&threadsPtr[iThread], NULL, KalmanListThread, (void *) &paramArrayPtr[iThread]);
-	}
-	// Wait till all the threads are finished
-	for (iThread = 0; iThread < nThreads; iThread++){
-		pthread_join (threadsPtr[iThread], NULL);
-	}
+#ifdef __GNUC__
+    for (iThread = 0; iThread < nThreads; iThread++){
+        pthread_create (&threadsPtr[iThread], NULL, KalmanListThread, (void *) &paramArrayPtr[iThread]);
+    }
+    // Wait till all the threads are finished
+    for (iThread = 0; iThread < nThreads; iThread++){
+        pthread_join (threadsPtr[iThread], NULL);
+    }
+#endif
+#ifdef _WINDOWS_
+    // create the threads
+    for (iThread = 0; iThread < nThreads; iThread++){
+        threadsPtr[iThread] = CreateThread (NULL, 0, (LPTHREAD_START_ROUTINE)KalmanListThread, (LPVOID)&paramArrayPtr[iThread], 0, NULL);
+    }
+    WaitForMultipleObjects(nThreads, threadsPtr, TRUE, INFINITE);
+    for (int iThread = 0; iThread < nThreads; iThread++){
+        CloseHandle(threadsPtr[iThread]);
+    }
+#endif
 	WMDisposePtr ((Ptr)threadsPtr);         // free memory for pThreads Array
 	WMDisposePtr ((Ptr)paramArrayPtr);      // Free paramaterArray memory
     WMDisposePtr ((Ptr)inPutDataStartsPtr); // free pointers to data starts
@@ -844,7 +938,13 @@ typedef struct KalmanNextThreadParams{
 
 /* Each thread to do sequential Kalmaning starts with this function
  Last Modified 2014/01/29 by Jamie Boyd */
+#ifdef __GNUC__
 void* KalmanNextThread (void* threadarg){
+#endif
+#ifdef _WINDOWS_
+DWORD WINAPI KalmanNextThread(LPVOID threadarg) {
+#endif
+
 	struct KalmanNextThreadParams* p;
 	p = (struct KalmanNextThreadParams*) threadarg;
 	CountInt nPnts= p->nPnts;
@@ -906,7 +1006,12 @@ extern "C" int KalmanNext (KalmanNextParamsPtr p) {
 	UInt16 iKal;
     UInt8 iThread, nThreads;
     KalmanNextThreadParamsPtr paramArrayPtr = NULL;
+#ifdef __GNUC__
     pthread_t* threadsPtr = NULL;
+#endif
+#ifdef _WINDOWS_
+    HANDLE* threadsPtr = NULL;
+#endif
 	try {
 		// get iKal
         iKal = (UInt16)p->iKal;
@@ -944,8 +1049,13 @@ extern "C" int KalmanNext (KalmanNextParamsPtr p) {
         nThreads =gNumProcessors;
         // make an array of parameter structures
         paramArrayPtr = (KalmanNextThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanNextThreadParams));
-        // make an array of pthread_t
+        // make an array of pthread_t or Windows Handles
+#ifdef __GNUC__
         threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+#endif
+#ifdef _WINDOWS_
+        HANDLE* threadsPtr = (HANDLE*)WMNewPtr(nThreads * sizeof(HANDLE));
+#endif
     }catch (int result){
         if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
         if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
@@ -966,6 +1076,7 @@ extern "C" int KalmanNext (KalmanNextParamsPtr p) {
         paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
         paramArrayPtr[iThread].tN =nThreads; // total number of threads
     }
+#ifdef __GNUC__
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, KalmanNextThread, (void *) &paramArrayPtr[iThread]);
@@ -974,6 +1085,18 @@ extern "C" int KalmanNext (KalmanNextParamsPtr p) {
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_join (threadsPtr[iThread], NULL);
     }
+#endif
+#ifdef _WINDOWS_
+    // create the threads
+    for (iThread = 0; iThread < nThreads; iThread++){
+        threadsPtr[iThread] = CreateThread (NULL, 0, (LPTHREAD_START_ROUTINE)KalmanNextThread, (LPVOID)&paramArrayPtr[iThread], 0, NULL);
+    }
+    // wait for them to finish
+    WaitForMultipleObjects(nThreads, threadsPtr, TRUE, INFINITE);
+    for (int iThread = 0; iThread < nThreads; iThread++){
+        CloseHandle(threadsPtr[iThread]);
+    }
+#endif
     // free memory for pThreads Array
     WMDisposePtr ((Ptr)threadsPtr);
     // Free paramaterArray memory
