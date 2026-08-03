@@ -20,11 +20,10 @@ function test_twoPhotonXOP ()
 			return 1
 		endif
 	else
-		if (WhichListItem("twoPhotonx86", XOPlist, ";") == -1)
-			print "TwoPhotonx86 XOP is not loaded!"
+		if (WhichListItem("twoPhoton", XOPlist, ";") == -1)
+			print "TwoPhoton XOP is not loaded!"
 			return 1
 		endif
-		return 1
 	endif
 	//timer stuff
 	variable testNum =0
