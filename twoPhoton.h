@@ -8,8 +8,8 @@
 #include "XOPResources.h"                // Contains definition of XOP_TOOLKIT_VERSION
 #include "XOPStandardHeaders.h"            // Include ANSI headers, Mac headers, IgorXOP.h, XOP.h and XOPSupport.h
 
-//#define NO_IGOR_ERR   // when defined, all functions return 0 to avoid modal dialogs
-#undef NO_IGOR_ERR      // when not defined, functions return error codes that invoke modal dialogs
+#define NO_IGOR_ERR   // when defined, all functions return 0 to avoid modal dialogs
+//#undef NO_IGOR_ERR      // when not defined, functions return error codes that invoke modal dialogs
 
 /* twoP custom error codes - also serve as return values from functions, after subtracting FIRST_XOP_ERR */
 #define OLD_IGOR                1 + FIRST_XOP_ERR

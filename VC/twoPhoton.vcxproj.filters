@@ -24,8 +24,8 @@
     <Library Include="..\..\XOPSupport\IGOR64.lib" />
     <Library Include="..\..\XOPSupport\VC\XOPSupport.lib" />
     <Library Include="..\..\XOPSupport\VC\XOPSupport64.lib" />
-    <Library Include="..\..\..\..\..\..\..\source\repos\pthread-win32\windows\VS2022\bin\Release-Unicode-32bit-x86\pthread_static_lib.lib" />
     <Library Include="..\..\..\..\..\..\..\source\repos\pthread-win32\windows\VS2022\bin\Release-Unicode-64bit-x64\pthread_static_lib_x64.lib" />
+    <Library Include="..\..\XOPSupport\pthread_static_lib.lib" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\twoPhoton.cpp">

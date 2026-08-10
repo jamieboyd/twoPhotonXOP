@@ -1,4 +1,6 @@
 #include "twoPhoton.h"
+#undef _WINDOWS_
+#define __GNUC__
 /* ---------------------------------------------Kalman----------------------------------------------------------
  Code for Kalman averaging of frames in a 3d wave, 2d wave, or a list of waves
  Last Modified 2026/08/02 by Jamie Boyd - using native windows threading instead of pThreadsWin32
@@ -140,7 +142,12 @@ void* KalmanThread (void* threadarg){
 		break;
 	}
 	if (result != 0) throw result;
-    return 0;
+#ifdef __GNUC__
+	return nullptr;
+#endif
+#ifdef _WINDOWS_
+	return 0;
+#endif
 }
 
 /* KalmanAllFrames XOP entry function
@@ -248,7 +255,7 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
         // catch error before starting threads
 	}catch (int result){
         if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
-        if (threadsPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
+        //if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
         WMDisposeHandle(p->outPutPath);  // dispose passed in string paramater
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
@@ -389,9 +396,14 @@ extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
         // make an array of parameter structures
         paramArrayPtr = (KalmanThreadParamsPtr)WMNewPtr (nThreads * sizeof(KalmanThreadParams));
         if (paramArrayPtr == NULL) throw result = MEMFAIL;
-        // make an array of pthread_t
-        threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
-        if (threadsPtr == NULL) throw result = MEMFAIL;
+        // make an array of pthread_t or HANDLES
+#ifdef __GNUC__
+		threadsPtr = (pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+#endif
+#ifdef _WINDOWS_
+		HANDLE* threadsPtr = (HANDLE*)WMNewPtr(nThreads * sizeof(HANDLE));
+#endif
+    if (threadsPtr == NULL) throw result = MEMFAIL;
 	}catch (int result){
         if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
         if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
@@ -499,7 +511,6 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
         #ifdef _WINDOWS_
                 HANDLE* threadsPtr = (HANDLE*)WMNewPtr(nThreads * sizeof(HANDLE));
         #endif
-        threadsPtr = (pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
         if (threadsPtr == NULL) throw result = MEMFAIL;
 	}catch (int result){
         if (paramArrayPtr != NULL)  WMDisposePtr ((Ptr)paramArrayPtr);
@@ -675,7 +686,12 @@ DWORD WINAPI KalmanListThread(LPVOID threadarg) {
 		throw NT_FNOT_AVAIL;
 		break;
 	}
+#ifdef __GNUC__
+	return nullptr;
+#endif
+#ifdef _WINDOWS_
 	return 0;
+#endif
 }
 
 /* KalmanList XOP entry function
@@ -979,7 +995,12 @@ DWORD WINAPI KalmanNextThread(LPVOID threadarg) {
             KalmanNextT ((double*)p->inPutDataStartPtr + startPos, (double*)p->outPutDataStartPtr + startPos, pntsPerThread, p->iKal);
             break;
 	}
+#ifdef __GNUC__
 	return nullptr;
+#endif
+#ifdef _WINDOWS_
+	return 0;
+#endif
 }
 
 

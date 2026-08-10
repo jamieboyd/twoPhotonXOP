@@ -42,10 +42,8 @@ function test_twoPhotonXOP ()
 	WAVE theStack = root:theStack
 	// mimic a noisy 12 bit A/D image stack
 	MultiThread /NT=(ThreadProcessorCount) theStack = 2^11 + (2^10) * (sin ((x-z)/60) * cos ((y+z)/40)) + enoise (2^10)
-	
 	// display stack
 	execute "twoPxop_theStack()"; doupdate; sleep/S 1
-	
 	// Kalman All Frames
 	testType [testNum]=" Kalman All Frames"
 	timerRefNum = StartMSTimer
@@ -56,7 +54,6 @@ function test_twoPhotonXOP ()
 	wave KalManAllFrames_out = root:KalManAllFrames_out
 	execute "twoPxop_KalmanAllFrames_out()"
 	doupdate; sleep/S 1
-	
 	// Kalman Spec Frames
 	testType [testNum]=" Kalman Specified Frames x 10"
 	testScores [testNum] = 0
