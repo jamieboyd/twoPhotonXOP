@@ -66,13 +66,16 @@ static XOPIORecResult RegisterFunction() {
 	case 14:
 		return ((XOPIORecResult)TransposeFrames);
 		break;
-	case 15:
+    case 15:
+        return ((XOPIORecResult)FastIntCopy);
+        break;
+	case 16:
 		return ((XOPIORecResult)ConvolveFrames);
 		break;
-	case 16:
+	case 17:
 		return ((XOPIORecResult)SymConvolveFrames);
 		break;
-	case 17:
+	case 18:
 		return ((XOPIORecResult)MedianFrames);
 		break;
 	}

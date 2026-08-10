@@ -65,7 +65,7 @@ resource 'STR#' (1100) {                    /* custom error messages */
         "Temporary memory could not be allocated for processing",
         /* [25] NUMTYPE */
         "Can not do this function on wave of this type",
-        /* [26] INPUT_RANGE */
+        /* [26] x`x */
         "Range of requested dimensions to process is invalid",
     }
 };
@@ -219,7 +219,7 @@ resource 'XOPF' (1100) {
         NT_FP64,
         {
             WAVE_TYPE,        //InPutWave
-            NT_FP64,        // counterbits (24 or 32 are normal)
+            NT_FP64,        // counter bits (24 or 32 are normal)
         },
         
         "TransposeFrames",
@@ -227,6 +227,18 @@ resource 'XOPF' (1100) {
         NT_FP64,
         {
             WAVE_TYPE,        //InPutWave
+        },
+        
+        "FastIntCopy",
+        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
+        NT_FP64,
+        {
+            WAVE_TYPE,        // source Wave
+            NT_FP64,          // source offset
+            WAVE_TYPE,        // destination tWave
+            NT_FP64,          // destination offset
+            NT_FP64,          // number of points to copy
+            NT_FP64,          // CLip not rotate
         },
         
         "ConvolveFrames",

@@ -188,6 +188,18 @@ typedef struct TransposeFramesParams {
     double result;
 }TransposeFramesParams, * TransposeFramesParamsPtr;
 
+typedef struct FastIntCopyParams {
+    double ClipNotRotate;
+    double numCopyPoints;
+    double destOffset;
+    waveHndl destWaveH;
+    double srcOffset;
+    waveHndl srcWaveH;
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
+    double result;
+} FastIntCopyParams, * FastIntCopyParamsPtr;
+
+
 // Filter
 typedef struct ConvolveFramesParams {
     double overWrite; // 1 if it is o.k. to overwrite existing waves, 0 to exit with error if overwriting will occur
@@ -219,6 +231,7 @@ extern "C" int SwapEven(SwapEvenParamsPtr);
 extern "C" int DownSample(DownSampleParamsPtr p);
 extern "C" int Decumulate(DecumulateParamsPtr p);
 extern "C" int TransposeFrames(TransposeFramesParamsPtr p);
+extern "C" int FastIntCopy(FastIntCopyParamsPtr p);
 // Kalman Averaging
 extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr);
 extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr);
