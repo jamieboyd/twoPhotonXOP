@@ -248,7 +248,7 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
         // catch error before starting threads
 	}catch (int result){
         if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
-        if (threadsPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
+        if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
         WMDisposeHandle(p->outPutPath);  // dispose passed in string paramater
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR

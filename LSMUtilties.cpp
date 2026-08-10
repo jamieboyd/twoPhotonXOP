@@ -15,6 +15,12 @@ extern "C" int GetSetNumProcessors(GetSetNumProcessorsParamsPtr p){
     return (0);
 }
 
+/*
+FastSignedToUnsigned only works with signed input waves and unsigned output waves. 
+
+*/
+
+
 /* -------------------------------- SwapEven -------------------------------------------------------
  horizontally swaps every other line in an image or series of images.
  Used after doing back and forth scanning, where every other line is scanned from the opposite direction.
@@ -507,7 +513,7 @@ extern "C" int DownSample (DownSampleParamsPtr p) {
     try{
         // Get handles to input wave. Make sure it exists.
         wavH = p->w1;
-        if (wavH == NIL) throw result = NON_EXISTENT_WAVE;
+        if (wavH == nullptr) throw result = NON_EXISTENT_WAVE;
         // Get wave data type.
         waveType = WaveType(wavH);
         // Can't process text waves
@@ -757,7 +763,7 @@ extern "C" int TransposeFrames (TransposeFramesParamsPtr p) {
     try {
         // Get handle to input wave. Make sure it exists.
         wavH = p->w1;
-        if (wavH == NIL) throw result = NON_EXISTENT_WAVE;
+        if (wavH == nullptr) throw result = NON_EXISTENT_WAVE;
         // Get wave data type.
         waveType = WaveType(wavH);
         // Can't process text waves
@@ -983,7 +989,7 @@ int Decumulate (DecumulateParamsPtr p) {
     try {
         // Get handle to input wave. Make sure it exists.
         wavH = p->w1;
-        if (wavH == NIL) throw result = NON_EXISTENT_WAVE;
+        if (wavH == nullptr) throw result = NON_EXISTENT_WAVE;
         //Get data type, no text waves
         waveType = WaveType(p->w1);
         if (waveType == TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
@@ -1077,3 +1083,364 @@ int Decumulate (DecumulateParamsPtr p) {
     p->result = (0);        // return 0 for success
     return (0);
  }
+
+/* *********************************** FastIntCopy ***********************************************************
+ Copies data between 2 Integer waves. Unsigned/signed mismatch is handled by either rotating
+ the values in the dest wave, or by clipping them.
+ 
+ For rotating, all of the data values are preserved, but an offset is added, either positive
+ for copying unsigned to signed, or negative for copying from signed to unsigned.
+ 
+ For clipping, if copying data from a signed src wave to an unsigned dest wave,
+ values below zero are clipped to zero, but values above zero retain the same absolute
+ value as in the signed src wave. If copying data from an unsigned wave to a signed wave,
+ values above half of max value are clipped to half max value, but values below half max value
+ retain the same absolute value as in the unsigned src wave.
+ 
+ **********************************************************************************************
+ Structure to pass data to any of the FastIntCopyThread variants
+ Last Modified 2026/08/07 by Jamie Boyd */
+typedef struct FastIntCopyThreadParams{
+    char* srcDataStartPtr;      // pointer to start of data in src wave
+    IndexInt srcPointOffset;     // offset to where we start copying data from
+    char* destDataStartPtr;     // pointer to start of data in dest wave
+    IndexInt destPointOffset;    // offset to where we start copying data to
+    int srcWaveType;            // dest wave type can be inferred from srcWaveType
+    CountInt numCopyPoints;     // number of points to copy
+    UInt8 ti;                   // number of this thread, starting from 0
+    UInt8 tN;                   // total number of threads
+} FastIntCopyThreadParams, *FastIntCopyThreadParamsPtr;
+
+
+/* **********************************************************************************************
+ fast integer copy when the signed/unsigned statuses of source and destination waves are the same.
+ Last Modified 2026/08/07 by Jamie Boyd */
+template <typename TI, typename TO> void FastIntCopyT (TI* srcPtr, TO* destPtr, CountInt numCopyPoints){
+    TO* endPtr;
+    for (endPtr = destPtr + numCopyPoints; destPtr < endPtr; srcPtr++ , destPtr++){
+        *destPtr = *srcPtr;
+    }
+}
+
+/* **********************************************************************************************
+ FastIntCopyThread for straight copy when the signed/unsigned statuses of source and destination waves are the same.
+ Last Modified 2026/08/08 by Jamie Boyd */
+void* FastIntCopyThread (void* threadarg){
+    struct FastIntCopyThreadParams* p = (struct FastIntCopyThreadParams*) threadarg;
+    CountInt numCopyPoints = p->numCopyPoints;
+    CountInt srcPointOffset = p->srcPointOffset;
+    CountInt destPointOffset = p->destPointOffset;
+    UInt8 ti = p->ti;
+    UInt8 tN = p->tN;
+    CountInt pixPerThread = numCopyPoints/tN;
+    CountInt startPos = ti * pixPerThread; // which pixel to start this thread on depends on thread number * points per thread. ti is 0 based
+    if (ti == (tN - 1)) pixPerThread += (numCopyPoints % tN); // last thread gets any extra pixels
+    switch (p->srcWaveType) {
+        case (NT_I8 | NT_UNSIGNED):
+            FastIntCopyT ((unsigned char*)p->srcDataStartPtr + startPos + srcPointOffset, (unsigned char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread);
+            break;
+        case (NT_I16 | NT_UNSIGNED):
+            FastIntCopyT ((unsigned short*)p->srcDataStartPtr + p->srcPointOffset + startPos, (unsigned short*) p->destDataStartPtr + p->destPointOffset + startPos, pixPerThread);
+            break;
+        case (NT_I32| NT_UNSIGNED):
+            FastIntCopyT ((UInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (UInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread);
+            break;
+        case (NT_I64| NT_UNSIGNED):
+            FastIntCopyT ((UInt64*)p->srcDataStartPtr + startPos + srcPointOffset, (UInt64*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread);
+            break;
+        case (NT_I8):
+           FastIntCopyT ((char*)p->srcDataStartPtr  + startPos + srcPointOffset, (char*)p->destDataStartPtr + startPos + destPointOffset,  pixPerThread);
+            break;
+        case (NT_I16):
+            FastIntCopyT ((short*)p->srcDataStartPtr  + startPos + srcPointOffset, (short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread);
+            break;
+        case (NT_I32):
+            FastIntCopyT ((SInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread);
+            break;
+        case (NT_I64):
+            FastIntCopyT ((SInt64*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt64*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread);
+            break;
+    }
+    return nullptr;
+}
+
+/* **********************************************************************************************
+ fast integer copy with rotation, for when the signed/unsigned statuses of source and destination waves are opposite
+ Last Modified 2026/08/07 by Jamie Boyd */
+template <typename TI, typename TO> void FastIntCopyRotT (TI* srcPtr, TO* destPtr, CountInt numCopyPoints, TO(rotatePnts)){
+    TO* endPtr;
+    for (endPtr = destPtr + numCopyPoints; destPtr < endPtr; srcPtr++ , destPtr++){
+        *destPtr = *srcPtr + rotatePnts;
+    }
+}
+
+/* **********************************************************************************************
+ FastIntCopyThread with rotation for when the signed/unsigned statuses of source and destination waves are opposite.
+ Last Modified 2026/08/08 by Jamie Boyd */
+void* FastIntCopyRotThread (void* threadarg){
+    struct FastIntCopyThreadParams* p;
+    p = (struct FastIntCopyThreadParams*) threadarg;
+    CountInt srcPointOffset = p->srcPointOffset;
+    CountInt destPointOffset = p->destPointOffset;
+    CountInt numCopyPoints = p->numCopyPoints;
+    UInt8 ti = p->ti;
+    UInt8 tN = p->tN;
+    CountInt pixPerThread = numCopyPoints/tN;
+    CountInt startPos = ti * pixPerThread; // which pixel to start this thread on depends on thread number * points per thread. ti is 0 based
+    if (ti == (tN - 1)) pixPerThread += (numCopyPoints % tN); // last thread gets any extra pixels
+    switch (p->srcWaveType) {
+        case (NT_I8 | NT_UNSIGNED):
+            FastIntCopyRotT ((unsigned char*)p->srcDataStartPtr  + startPos + srcPointOffset, (char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (char)-128);
+            break;
+        case (NT_I16 | NT_UNSIGNED):
+            FastIntCopyRotT ((unsigned short*)p->srcDataStartPtr  + startPos + srcPointOffset, (short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (short)-32768);
+            break;
+        case (NT_I32| NT_UNSIGNED):
+           FastIntCopyRotT ((UInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt32)-2147483648);
+            break;
+        case (NT_I64| NT_UNSIGNED):
+            FastIntCopyRotT ((UInt64*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt64*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt64)-9223372036854775808);
+            break;
+        case (NT_I8):
+            FastIntCopyRotT ((char*)p->srcDataStartPtr  + startPos + srcPointOffset, (unsigned char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned char)128);
+            break;
+        case (NT_I16):
+            FastIntCopyRotT ((short*)p->srcDataStartPtr  + startPos + srcPointOffset, (unsigned short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned short)32768);
+            break;
+        case (NT_I32):
+            FastIntCopyRotT ((SInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (UInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (UInt32)2147483648);
+            break;
+        case (NT_I64):
+            FastIntCopyRotT ((SInt64*)p->srcDataStartPtr + startPos, (UInt64*) p->destDataStartPtr + startPos, pixPerThread, (UInt64)9223372036854775808);
+            break;
+    }
+    return nullptr;
+}
+
+/* **********************************************************************************************
+ fast integer copy with clipping of negative values to zero, for when the source is signed and the destination is unsigned
+Last Modified 2026/08/07 by Jamie Boyd */
+template <typename TI, typename TO> void FastIntCopyStoUclipT (TI* srcPtr, TO* destPtr, CountInt numCopyPoints, TO(maxSigned)){
+    TO* endPtr;
+    for (endPtr = destPtr + numCopyPoints; destPtr < endPtr; srcPtr++ , destPtr++){
+        *destPtr = *srcPtr;
+        if (*destPtr > maxSigned){
+            *destPtr  = 0;
+        }
+    }
+}
+
+/* **********************************************************************************************
+ FastIntCopyStoUclipThread Thread for fast integer copy with clipping of negative values to zero, for when the source is signed and the destination is unsigned
+Last Modified 2026/08/07 by Jamie Boyd */
+void* FastIntCopyStoUclipThread (void* threadarg){
+    struct FastIntCopyThreadParams* p;
+    p = (struct FastIntCopyThreadParams*) threadarg;
+    CountInt numCopyPoints = p->numCopyPoints;
+    CountInt srcPointOffset = p->srcPointOffset;
+    CountInt destPointOffset = p->destPointOffset;
+    UInt8 ti = p->ti;
+    UInt8 tN = p->tN;
+    CountInt pixPerThread = numCopyPoints/tN;
+    CountInt startPos = ti * pixPerThread; // which pixel to start this thread on depends on thread number * points per thread. ti is 0 based
+    if (ti == (tN - 1)) pixPerThread += (numCopyPoints % tN); // last thread gets any extra pixels
+    switch (p->srcWaveType) {
+        case (NT_I8):
+            FastIntCopyStoUclipT ((char*)p->srcDataStartPtr + startPos + srcPointOffset, (unsigned char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned char)127);
+            break;
+        case (NT_I16):
+            FastIntCopyStoUclipT ((short*)p->srcDataStartPtr  + startPos + srcPointOffset, (unsigned short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned short)32767);
+            break;
+        case (NT_I32):
+            FastIntCopyStoUclipT ((SInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (UInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (UInt32)2147483647);
+            break;
+        case (NT_I64):
+              FastIntCopyStoUclipT ((SInt64*)p->srcDataStartPtr + startPos + srcPointOffset, (UInt64*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (UInt64)9223372036854775807);
+              break;
+    }
+    return nullptr;
+}
+
+
+/* **********************************************************************************************
+ template fast integer copy with clipping of large values to the maximum signed value, for when the source is unsigned and the destination is signed
+Last Modified 2026/08/07 by Jamie Boyd */
+template <typename TI, typename TO> void FastIntCopyUtoSclipT (TI* srcPtr, TO* destPtr, CountInt numCopyPoints, TO(maxSigned)){
+    TO* endPtr;
+    for (endPtr = destPtr + numCopyPoints; destPtr < endPtr; srcPtr++ , destPtr++){
+        *destPtr = *srcPtr;
+        if (*destPtr < 0){
+            *destPtr  = maxSigned;
+        }
+    }
+}
+
+/* **********************************************************************************************
+ thread for fast integer copy with clipping of large values to the maximum signed value, when the source is unsigned and the destination is signed
+Last Modified 2026/08/07 by Jamie Boyd */
+void* FastIntCopyUtoSclipThread (void* threadarg){
+    struct FastIntCopyThreadParams* p;
+    p = (struct FastIntCopyThreadParams*) threadarg;
+    CountInt numCopyPoints = p->numCopyPoints;
+    CountInt srcPointOffset = p->srcPointOffset;
+    CountInt destPointOffset = p->destPointOffset;
+    UInt8 ti = p->ti;
+    UInt8 tN = p->tN;
+    
+    CountInt pixPerThread = numCopyPoints/tN;
+    CountInt startPos = ti * pixPerThread; // which pixel to start this thread on depends on thread number * points per thread. ti is 0 based
+    if (ti == (tN - 1)) pixPerThread += (numCopyPoints % tN); // last thread gets any extra pixels
+    switch (p->srcWaveType) {
+        case (NT_I8 | NT_UNSIGNED):
+            FastIntCopyUtoSclipT ((unsigned char*)p->srcDataStartPtr  + startPos + srcPointOffset, (char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (char)127);
+            break;
+        case (NT_I16 | NT_UNSIGNED):
+           FastIntCopyUtoSclipT ((unsigned short*)p->srcDataStartPtr  + startPos + srcPointOffset, (short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (short)32767);
+            break;
+        case (NT_I32| NT_UNSIGNED):
+            FastIntCopyUtoSclipT ((UInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt32)2147483647);
+            break;
+        case (NT_I64| NT_UNSIGNED):
+            FastIntCopyUtoSclipT ((UInt64*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt64*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt64)9223372036854775807);
+            break;
+    }
+    return nullptr;
+}
+
+/* **************************************** FastIntCopy XOP entry function **************************************************
+ waveHndl srcWaveH;
+ double srcOffset;
+ waveHndl destWaveH;
+ double destOffset;
+ double numCopyPoints;
+ double ClipNotRotate;
+ Last Modified 2026/09 by Jamie Boyd */
+extern "C" int FastIntCopy(FastIntCopyParamsPtr p) {
+    int result = 0;    // The error returned from various Wavemetrics functions
+    waveHndl srcWaveH = NULL, destWaveH = NULL;    // Handles to the input and output waves
+    IndexInt srcOffset, destOffset;     // offsets to points in src and dest wave to copy to/from
+    IndexInt numCopyPoints;       // the number of points to be copied
+    UInt8 ClipNotRotate; // set to request clipping for signed/unsigned mismatch between dest and src
+    int srcWaveType, destWaveType;    // Wavemetrics numeric code for data type of wave
+    CountInt srcOffsetToData, destOffsetToData; //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units
+    IndexInt numSrcPoints, numDestPoints;       // total number of points in src and dest waves
+    char *srcDataStartPtr, *destDataStartPtr; // pointers to start of data, will be cast to correct type for wave
+    UInt8 iThread, nThreads;                 // for threading
+    pthread_t* threadsPtr = nullptr;       // array of pthreads
+    FastIntCopyThreadParamsPtr paramArrayPtr = nullptr; // for passing data to threads
+    UInt8 method;       // code for which fast copy thread to use
+    char XOPbuffer [256]; // string used for XOPAlert for debugging
+    try {
+        // copy data from input struct.
+        srcWaveH = p->srcWaveH;
+        destWaveH = p->destWaveH;
+        if (destWaveH == nullptr){
+            sprintf(XOPbuffer, "The destination wave handle is bad.\r");
+            XOPNotice (XOPbuffer);
+        }
+        srcOffset = (CountInt)p->srcOffset;
+        destOffset = (CountInt)p->destOffset;
+        numCopyPoints = (IndexInt)p->numCopyPoints;
+        ClipNotRotate = (UInt8)p->ClipNotRotate;
+        // Check handles to src and dest waves make sure they exist.
+        if ((srcWaveH == nullptr) || (destWaveH == nullptr)) throw result= NON_EXISTENT_WAVE;
+        // make sure offsets and number of points to copy do not exceed wave size
+        numSrcPoints = WavePoints(srcWaveH);
+        numDestPoints = WavePoints(destWaveH);
+        // short cut case where numCopyPnts is 0
+        if (numCopyPoints < 1){
+            if (srcOffset == 0){
+                numCopyPoints = numSrcPoints;
+            }else if (destOffset == 0){
+                numCopyPoints = numDestPoints;
+            }
+        }
+        if (((srcOffset + numCopyPoints) > numSrcPoints) || ((destOffset + numCopyPoints) > numDestPoints)) throw result = INPUT_RANGE;
+        // Get waves data types and check they are integers of same bit width, give or take the unsigned flag
+        srcWaveType = WaveType(srcWaveH);
+        destWaveType =  WaveType(destWaveH);
+        if (srcWaveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
+        if ((srcWaveType == NT_FP32 ) || (srcWaveType == NT_FP64)) throw result = WAVEERROR_NOS;
+        if (!((srcWaveType == destWaveType) || (abs (srcWaveType - destWaveType) == NT_UNSIGNED))) throw result = WAVEERROR_NOS;
+        //Get offsets to wave data for src and dest
+        if (MDAccessNumericWaveData(srcWaveH, kMDWaveAccessMode0, &srcOffsetToData) != 0) throw result = WAVEERROR_NOS;
+        srcDataStartPtr = (char*)(*srcWaveH) + srcOffsetToData;
+        if (MDAccessNumericWaveData(destWaveH, kMDWaveAccessMode0, &destOffsetToData) != 0) throw result = WAVEERROR_NOS;
+        destDataStartPtr = (char*)(*destWaveH) + destOffsetToData;
+        // set fastIntCopy method as appropriate for wave types and clipnotRotate choice
+        method = 0;
+        if (srcWaveType & NT_UNSIGNED) method += 1;
+        if (destWaveType & NT_UNSIGNED) method += 2;
+        if (ClipNotRotate) method += 4;
+        // get ready for thread initiaializaton
+        nThreads = gNumProcessors;
+        // make array of parameter structures
+        paramArrayPtr = (FastIntCopyThreadParamsPtr)WMNewPtr (nThreads * sizeof(FastIntCopyThreadParams));
+        if (paramArrayPtr == NULL) throw result = MEMFAIL;
+        // make an array of pthread_t or HANDLE
+        threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == NULL) throw result = MEMFAIL;
+        // catch error before starting threads
+    }catch (int result){
+        if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
+        if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
+        p -> result = (double)(result - FIRST_XOP_ERR);
+#ifdef NO_IGOR_ERR
+        return (0);
+#else
+        return (result);
+#endif
+    }
+    // fill paramater array
+    for (iThread = 0; iThread < nThreads; iThread++){
+        paramArrayPtr[iThread].srcDataStartPtr = srcDataStartPtr;
+        paramArrayPtr[iThread].srcPointOffset = srcOffset;
+        paramArrayPtr[iThread].destDataStartPtr = destDataStartPtr;
+        paramArrayPtr[iThread].destPointOffset = destOffset;
+        paramArrayPtr[iThread].srcWaveType = srcWaveType;
+    paramArrayPtr[iThread].numCopyPoints = numCopyPoints;
+        paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
+        paramArrayPtr[iThread].tN =nThreads; // total number of threads
+    }
+    // create the threads according to needed thread function
+    switch (method){
+        case 0:     //no rotation is needed, where the src and dest waves have the same type. request for Clipping is ignored
+        case 3:
+        case 4:
+        case 7:
+            for (iThread = 0; iThread < nThreads; iThread++){
+                pthread_create (&threadsPtr[iThread], NULL, FastIntCopyThread, (void *) &paramArrayPtr[iThread]);
+            }
+            break;
+           
+        case 1:      // No cliping wanted, but the src and dest waves have signed/unsigned mis-match, so rotation is needed
+        case 2:
+            for (iThread = 0; iThread < nThreads; iThread++){
+                pthread_create (&threadsPtr[iThread], NULL, FastIntCopyRotThread, (void *) &paramArrayPtr[iThread]);
+            }
+            break;
+            
+        case 5:     // for copying from TI Unsigned src wave to TO signed dest wave, with clipping
+            for (iThread = 0; iThread < nThreads; iThread++){
+                pthread_create (&threadsPtr[iThread], NULL, FastIntCopyUtoSclipThread, (void *) &paramArrayPtr[iThread]);
+            }
+            break;
+            
+        case 6:     //for copying from TI Signed src wave to TO Unsigned dest wave, with clipping
+            for (iThread = 0; iThread < nThreads; iThread++){
+                pthread_create (&threadsPtr[iThread], NULL, FastIntCopyStoUclipThread, (void *) &paramArrayPtr[iThread]);
+            }
+            break;
+    }
+    // Wait till all the threads are finished
+    for (iThread = 0; iThread < nThreads; iThread++){
+        pthread_join (threadsPtr[iThread], NULL);
+    }
+    // free memory for pThreads Array and paramaterArray memory
+    if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
+    if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
+    // Inform Igor that we have changed output wave
+    WaveHandleModified(destWaveH);
+    p -> result = (0);
+    return (0);
+}
