@@ -1,7 +1,7 @@
 #include "twoPhoton.h"
 /* ----------------------------------------Filter ------------------------------------------------------------------
  Code for filtering waves with 2D convolution kernels - arbitrary, symetrical, or median
- Last Modified 2025/06/23 by Jamie Boyd
+ Last Modified 2026/08/11 by Jamie Boyd - changed long to SInt32 and unsigned long to SInt32 and added support for 64 bitInteger waves
 --------------------------------------------------------------------------------------------------------------------*/
 
 
@@ -276,10 +276,16 @@ void* ConvolveFramesThread (void* threadarg){
                 ConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_I32:
-                ConvolveT ((long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((SInt32*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case (NT_I32| NT_UNSIGNED):
-                ConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((UInt32*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                break;
+            case NT_I64:
+                ConvolveT((SInt64*)p->inPutDataPtr + startPos, (float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                break;
+            case (NT_I64 | NT_UNSIGNED):
+                ConvolveT((UInt64*)p->inPutDataPtr + startPos, (float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_FP32:
                 ConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
@@ -303,10 +309,16 @@ void* ConvolveFramesThread (void* threadarg){
                 ConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(unsigned short*)p->outPutDataPtr + startPos, (unsigned short*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_I32:
-                ConvolveT ((long*)p->inPutDataPtr + startPos,(long*)p->outPutDataPtr + startPos, (long*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((SInt32*)p->inPutDataPtr + startPos,(SInt32*)p->outPutDataPtr + startPos, (SInt32*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case (NT_I32| NT_UNSIGNED):
-                ConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(unsigned long*)p->outPutDataPtr + startPos, (unsigned long*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                ConvolveT ((UInt32*)p->inPutDataPtr + startPos,(UInt32*)p->outPutDataPtr + startPos, (UInt32*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                break;
+            case NT_I64:
+                ConvolveT((SInt64*)p->inPutDataPtr + startPos, (SInt64*)p->outPutDataPtr + startPos, (SInt64*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
+                break;
+            case (NT_I64 | NT_UNSIGNED):
+                ConvolveT((UInt64*)p->inPutDataPtr + startPos, (UInt64*)p->outPutDataPtr + startPos, (UInt64*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
                 break;
             case NT_FP32:
                 ConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth, p->kHeight);
@@ -683,10 +695,16 @@ void* SymConvolveFramesThread (void* threadarg){
                 SymConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case NT_I32:
-                SymConvolveT ((long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((SInt32*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case (NT_I32| NT_UNSIGNED):
-                SymConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((UInt32*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                break;
+            case NT_I64:
+                SymConvolveT((SInt64*)p->inPutDataPtr + startPos, (float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth);
+                break;
+            case (NT_I64 | NT_UNSIGNED):
+                SymConvolveT((UInt64*)p->inPutDataPtr + startPos, (float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth);
                 break;
             case NT_FP32:
                 SymConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
@@ -710,10 +728,16 @@ void* SymConvolveFramesThread (void* threadarg){
                 SymConvolveT ((unsigned short*)p->inPutDataPtr + startPos,(unsigned short*)p->outPutDataPtr + startPos, (unsigned short*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case NT_I32:
-                SymConvolveT ((long*)p->inPutDataPtr + startPos,(long*)p->outPutDataPtr + startPos, (long*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((SInt32*)p->inPutDataPtr + startPos,(SInt32*)p->outPutDataPtr + startPos, (SInt32*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
                 break;
             case (NT_I32| NT_UNSIGNED):
-                SymConvolveT ((unsigned long*)p->inPutDataPtr + startPos,(unsigned long*)p->outPutDataPtr + startPos, (unsigned long*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                SymConvolveT ((UInt32*)p->inPutDataPtr + startPos,(UInt32*)p->outPutDataPtr + startPos, (UInt32*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
+                break;
+            case NT_I64:
+                SymConvolveT((SInt64*)p->inPutDataPtr + startPos, (SInt64*)p->outPutDataPtr + startPos, (SInt64*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth);
+                break;
+            case (NT_I64 | NT_UNSIGNED):
+                SymConvolveT((UInt64*)p->inPutDataPtr + startPos, (UInt64*)p->outPutDataPtr + startPos, (UInt64*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p->kWidth);
                 break;
             case NT_FP32:
                 SymConvolveT ((float*)p->inPutDataPtr + startPos,(float*)p->outPutDataPtr + startPos, (float*)p->frameBufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kernelDataPtr, p->kernelTablePtr, p-> kWidth);
@@ -1158,10 +1182,16 @@ void* MedianFramesThread (void* threadarg){
             MedianFramesT ((unsigned short*)p->inPutDataStartPtr + startPos,(unsigned short*)p->outPutDataStartPtr + startPos, (unsigned short*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
             break;
         case NT_I32:
-            MedianFramesT ((long*)p->inPutDataStartPtr + startPos,(long*)p->outPutDataStartPtr + startPos, (long*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((SInt32*)p->inPutDataStartPtr + startPos,(SInt32*)p->outPutDataStartPtr + startPos, (SInt32*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
             break;
         case (NT_I32| NT_UNSIGNED):
-            MedianFramesT ((unsigned long*)p->inPutDataStartPtr + startPos,(unsigned long*)p->outPutDataStartPtr + startPos, (unsigned long*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((UInt32*)p->inPutDataStartPtr + startPos,(UInt32*)p->outPutDataStartPtr + startPos, (UInt32*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            break;
+        case NT_I64:
+            MedianFramesT((SInt64*)p->inPutDataStartPtr + startPos, (SInt64*)p->outPutDataStartPtr + startPos, (SInt64*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            break;
+        case (NT_I64 | NT_UNSIGNED):
+            MedianFramesT((UInt64*)p->inPutDataStartPtr + startPos, (UInt64*)p->outPutDataStartPtr + startPos, (UInt64*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
             break;
         case NT_FP32:
             MedianFramesT ((float*)p->inPutDataStartPtr + startPos,(float*)p->outPutDataStartPtr + startPos, (float*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);

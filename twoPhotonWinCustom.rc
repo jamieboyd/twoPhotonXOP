@@ -165,6 +165,12 @@ BEGIN
 	NT_FP64,
 	0,
 	
+	"TransposeFrames\0"
+	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+	NT_FP64,
+	WAVE_TYPE,
+	0,
+
 	"FastIntCopy\0"
 	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
 	NT_FP64,
@@ -174,12 +180,6 @@ BEGIN
 	NT_FP64,
 	NT_FP64,
 	NT_FP64,
-	0,
-	
-	"TransposeFrames\0"
-	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
-	NT_FP64,
-	WAVE_TYPE,
 	0,
 
 	"ConvolveFrames\0",

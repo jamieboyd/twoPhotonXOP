@@ -1,9 +1,11 @@
 #include "twoPhoton.h"
+// dirty trick to keep using pthreads for windows cause I have not got native windows threading to work. This is my test file
 #undef _WINDOWS_
 #define __GNUC__
 /* ---------------------------------------------Kalman----------------------------------------------------------
  Code for Kalman averaging of frames in a 3d wave, 2d wave, or a list of waves
- Last Modified 2026/08/02 by Jamie Boyd - using native windows threading instead of pThreadsWin32
+  Last Modified 2026/08/11 by Jamie Boyd - changed long to SInt32 and unsigned long to SInt32 and added support for 64 bitInteger waves
+ Last Modified 2026/08/02 by Jamie Boyd - start at using native windows threading instead of pThreadsWin32 - not working yet, hence the "dirty" includes
  ---------------------------------------------------------------------------------------------------------------*/
 
 /* The following template is used to handle any one of the 8 types of wave data, for any of the three Kalman averaging functions
@@ -126,10 +128,16 @@ void* KalmanThread (void* threadarg){
 		result = KalmanT ((unsigned short*)p->inPutDataStartPtr + (startLayer * frameSize) + startPos, (unsigned short*) p->outPutDataStartPtr + (outPutLayer * frameSize) + startPos, pixPerThread, pixToNextFrame, zSize, multiplier);
 		break;
 	case NT_I32:
-		result = KalmanT ((long*)p->inPutDataStartPtr + (startLayer * frameSize) + startPos, (long*) p->outPutDataStartPtr + (outPutLayer * frameSize) + startPos, pixPerThread, pixToNextFrame, zSize, multiplier);
+		result = KalmanT ((SInt32*)p->inPutDataStartPtr + (startLayer * frameSize) + startPos, (SInt32*) p->outPutDataStartPtr + (outPutLayer * frameSize) + startPos, pixPerThread, pixToNextFrame, zSize, multiplier);
 		break;
 	case (NT_I32| NT_UNSIGNED):
-		result = KalmanT ((unsigned long*)p->inPutDataStartPtr + (startLayer * frameSize)+ startPos, (unsigned long*) p->outPutDataStartPtr + (outPutLayer * frameSize) + startPos, pixPerThread, pixToNextFrame, zSize, multiplier);
+		result = KalmanT ((UInt32*)p->inPutDataStartPtr + (startLayer * frameSize)+ startPos, (UInt32*) p->outPutDataStartPtr + (outPutLayer * frameSize) + startPos, pixPerThread, pixToNextFrame, zSize, multiplier);
+		break;
+	case NT_I64:
+		result = KalmanT((SInt64*)p->inPutDataStartPtr + (startLayer * frameSize) + startPos, (SInt64*)p->outPutDataStartPtr + (outPutLayer * frameSize) + startPos, pixPerThread, pixToNextFrame, zSize, multiplier);
+		break;
+	case (NT_I64 | NT_UNSIGNED):
+		result = KalmanT((UInt64*)p->inPutDataStartPtr + (startLayer * frameSize) + startPos, (UInt64*)p->outPutDataStartPtr + (outPutLayer * frameSize) + startPos, pixPerThread, pixToNextFrame, zSize, multiplier);
 		break;
 	case NT_FP32:
 		result = KalmanT ((float*)p->inPutDataStartPtr + (startLayer * frameSize) + startPos, (float*) p->outPutDataStartPtr + (outPutLayer * frameSize) + startPos, pixPerThread, pixToNextFrame, zSize, multiplier);
@@ -255,7 +263,7 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
         // catch error before starting threads
 	}catch (int result){
         if (paramArrayPtr != NULL) WMDisposePtr ((Ptr)paramArrayPtr);
-        //if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
+        if (threadsPtr != NULL) WMDisposePtr ((Ptr)threadsPtr);
         WMDisposeHandle(p->outPutPath);  // dispose passed in string paramater
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
@@ -368,7 +376,7 @@ extern "C" int KalmanSpecFrames(KalmanSpecFramesParamsPtr p) {
 		if (!((inPutDimensionSizes[0] == outPutDimensionSizes [0]) && (inPutDimensionSizes[1] == outPutDimensionSizes [1]))) throw result = NOTSAMEDIMSIZE;
 		// Load outputlayer and the input startlayer and endlayer into local variables and check that they are o.k. wrt number of frames
 		// InPut layer must be 0 to use 2 D wave as output wave
-		outPutLayer = (long)p ->outPutLayer;
+		outPutLayer = (CountInt)p ->outPutLayer;
 		if (((outPutLayer != 0) && (outPutLayer > outPutDimensionSizes [2] - 1)) || (outPutLayer < 0)) throw result = INVALIDOUTPUTFRAME;
 		startLayer = p -> startLayer;
 		if (startLayer > inPutDimensionSizes [2] -1)throw result = INVALIDINPUTFRAME;
@@ -671,10 +679,16 @@ DWORD WINAPI KalmanListThread(LPVOID threadarg) {
 		KalmanListT ((unsigned short**)p->inPutDataStartsPtr, (unsigned short*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
 		break;
 	case NT_I32:
-		KalmanListT ((long**)p->inPutDataStartsPtr, (long*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+		KalmanListT ((SInt32**)p->inPutDataStartsPtr, (SInt32*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
 		break;
 	case (NT_I32| NT_UNSIGNED):
-		KalmanListT ((unsigned long**)p->inPutDataStartsPtr, (unsigned long*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+		KalmanListT ((UInt32**)p->inPutDataStartsPtr, (UInt32*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+		break;
+	case NT_I64:
+		KalmanListT((SInt64**)p->inPutDataStartsPtr, (SInt64*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+		break;
+	case (NT_I64 | NT_UNSIGNED):
+		KalmanListT((UInt64**)p->inPutDataStartsPtr, (UInt64*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
 		break;
 	case NT_FP32:
 		KalmanListT ((float**)p->inPutDataStartsPtr, (float*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
@@ -983,11 +997,17 @@ DWORD WINAPI KalmanNextThread(LPVOID threadarg) {
             KalmanNextT ((unsigned short*)p->inPutDataStartPtr + startPos, (unsigned short*)p->outPutDataStartPtr + startPos, pntsPerThread, p->iKal);
             break;
         case NT_I32:
-            KalmanNextT ((long*)p->inPutDataStartPtr + startPos, (long*)p->outPutDataStartPtr + startPos, pntsPerThread, p->iKal);
+            KalmanNextT ((SInt32*)p->inPutDataStartPtr + startPos, (SInt32*)p->outPutDataStartPtr + startPos, pntsPerThread, p->iKal);
             break;
         case (NT_I32| NT_UNSIGNED):
-            KalmanNextT ((unsigned long*)p->inPutDataStartPtr + startPos, (unsigned long*)p->outPutDataStartPtr + startPos, pntsPerThread, p->iKal);
+            KalmanNextT ((UInt32*)p->inPutDataStartPtr + startPos, (UInt32*)p->outPutDataStartPtr + startPos, pntsPerThread, p->iKal);
             break;
+		case NT_I64:
+			KalmanNextT((SInt64*)p->inPutDataStartPtr + startPos, (SInt64*)p->outPutDataStartPtr + startPos, pntsPerThread, p->iKal);
+			break;
+		case (NT_I64 | NT_UNSIGNED):
+			KalmanNextT((UInt64*)p->inPutDataStartPtr + startPos, (UInt64*)p->outPutDataStartPtr + startPos, pntsPerThread, p->iKal);
+			break;
         case NT_FP32:
             KalmanNextT ((float*)p->inPutDataStartPtr + startPos, (float*)p->outPutDataStartPtr + startPos, pntsPerThread, p->iKal);
             break;

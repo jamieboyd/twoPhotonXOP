@@ -2,6 +2,7 @@
 A collection of functions designed to work with the twoPhoton procedures revamped to work with XOP toolkit 8
 See the twoPhotonXOP.ihf file for a detailed desription of what each function does.
 Last Modified:
+20226/08/11 by Jamie Boyd added FastIntCopy
 2026/06/02 by Jamie Boyd  updating For XOP toolkit 8
 2025/06/13 by Jamie Boyd  updating For XOP toolkit 7
 */

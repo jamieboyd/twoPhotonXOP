@@ -3,7 +3,16 @@
   "WorkspaceRootPath": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\VC\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{0B2BED81-0C44-4EC1-BD27-263E054E3F32}|twoPhoton.vcxproj|C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\ProjectImage.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0B2BED81-0C44-4EC1-BD27-263E054E3F32}|twoPhoton.vcxproj|C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\LSMUtilties.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{0B2BED81-0C44-4EC1-BD27-263E054E3F32}|twoPhoton.vcxproj|C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\Kalman.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0B2BED81-0C44-4EC1-BD27-263E054E3F32}|twoPhoton.vcxproj|C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\Filter.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{0B2BED81-0C44-4EC1-BD27-263E054E3F32}|twoPhoton.vcxproj|C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\twoPhoton.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
@@ -12,16 +21,7 @@
       "AbsoluteMoniker": "D:0:0:{0B2BED81-0C44-4EC1-BD27-263E054E3F32}|twoPhoton.vcxproj|C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\twoPhoton.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{0B2BED81-0C44-4EC1-BD27-263E054E3F32}|twoPhoton.vcxproj|C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\ProjectImage.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{0B2BED81-0C44-4EC1-BD27-263E054E3F32}|twoPhoton.vcxproj|C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\ParseWavePath.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0B2BED81-0C44-4EC1-BD27-263E054E3F32}|twoPhoton.vcxproj|C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\LSMUtilties.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0B2BED81-0C44-4EC1-BD27-263E054E3F32}|twoPhoton.vcxproj|C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\Filter.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     }
   ],
   "DocumentGroupContainers": [
@@ -31,92 +31,98 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 4,
+          "SelectedChildIndex": 0,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "twoPhoton.cpp",
-              "DocumentMoniker": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\twoPhoton.cpp",
-              "RelativeDocumentMoniker": "..\\twoPhoton.cpp",
-              "ToolTip": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\twoPhoton.cpp",
-              "RelativeToolTip": "..\\twoPhoton.cpp",
-              "ViewState": "AgIAAA8AAAAAAAAAAAAAABoAAAAIAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2026-06-08T21:36:42.812Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 0,
               "Title": "ProjectImage.cpp",
               "DocumentMoniker": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\ProjectImage.cpp",
               "RelativeDocumentMoniker": "..\\ProjectImage.cpp",
               "ToolTip": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\ProjectImage.cpp",
               "RelativeToolTip": "..\\ProjectImage.cpp",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAAZAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAUAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2026-06-08T21:37:39.895Z"
+              "WhenOpened": "2026-06-08T21:37:39.895Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 6,
               "Title": "ParseWavePath.cpp",
               "DocumentMoniker": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\ParseWavePath.cpp",
               "RelativeDocumentMoniker": "..\\ParseWavePath.cpp",
               "ToolTip": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\ParseWavePath.cpp",
               "RelativeToolTip": "..\\ParseWavePath.cpp",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAFUAAAAAAAAAAADgv2kAAAA6AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2026-06-08T21:37:36.076Z"
+              "WhenOpened": "2026-06-08T21:37:36.076Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 1,
               "Title": "LSMUtilties.cpp",
               "DocumentMoniker": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\LSMUtilties.cpp",
               "RelativeDocumentMoniker": "..\\LSMUtilties.cpp",
               "ToolTip": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\LSMUtilties.cpp",
               "RelativeToolTip": "..\\LSMUtilties.cpp",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAATAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAUAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2026-06-08T21:37:27.998Z"
+              "WhenOpened": "2026-06-08T21:37:27.998Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 2,
               "Title": "Kalman.cpp",
               "DocumentMoniker": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\Kalman.cpp",
               "RelativeDocumentMoniker": "..\\Kalman.cpp",
               "ToolTip": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\Kalman.cpp",
               "RelativeToolTip": "..\\Kalman.cpp",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAEAAAAQAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAACYAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2026-06-08T21:37:13.369Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 3,
               "Title": "Filter.cpp",
               "DocumentMoniker": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\Filter.cpp",
               "RelativeDocumentMoniker": "..\\Filter.cpp",
               "ToolTip": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\Filter.cpp",
               "RelativeToolTip": "..\\Filter.cpp",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2026-06-08T21:36:48.884Z"
+              "WhenOpened": "2026-06-08T21:36:48.884Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 4,
               "Title": "twoPhoton.h",
               "DocumentMoniker": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\twoPhoton.h",
               "RelativeDocumentMoniker": "..\\twoPhoton.h",
               "ToolTip": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\twoPhoton.h",
               "RelativeToolTip": "..\\twoPhoton.h",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAH4AAAAAAAAAAAAAAAoAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
-              "WhenOpened": "2026-06-08T21:29:32.921Z"
+              "WhenOpened": "2026-06-08T21:29:32.921Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "twoPhoton.cpp",
+              "DocumentMoniker": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\twoPhoton.cpp",
+              "RelativeDocumentMoniker": "..\\twoPhoton.cpp",
+              "ToolTip": "C:\\Users\\jadob\\OneDrive\\Documents\\WaveMetrics\\XOP Toolkit 8\\IgorXOPs8\\twoPhotonXOP\\twoPhoton.cpp",
+              "RelativeToolTip": "..\\twoPhoton.cpp",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2026-06-08T21:36:42.812Z",
+              "EditorCaption": ""
             }
           ]
         }

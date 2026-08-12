@@ -3,7 +3,9 @@
 
 /* ------------------------------LSM Utilities --------------------------------------------------
 utility functions specialized for Laser Scanning Microscope data acquisition
-Last Modified 2025/06/27 by Jamie Boyd
+ Last Modified 2026/08/11 by Jamie Boyd - changed long to SInt32 and unsigned long to SInt32 and added support for 64 bitInteger waves and added FastIntCopy
+ 
+
  -------------------------------------------------------------------------------------------------*/
  
 /* --------------------------- GetSetNumProcessors--------------------------------------------
@@ -86,10 +88,16 @@ void* SwapEvenThread (void* threadarg){
         SwapEvenT ((unsigned short*)p->dataStartPtr + startPos, tLines, p->lineLen);
         break;
     case NT_I32:
-        SwapEvenT ((long*)p->dataStartPtr + startPos, tLines, p->lineLen);
+        SwapEvenT ((SInt32*)p->dataStartPtr + startPos, tLines, p->lineLen);
         break;
     case (NT_I32| NT_UNSIGNED):
-        SwapEvenT ((unsigned long*)p->dataStartPtr + startPos, tLines, p->lineLen);
+        SwapEvenT ((UInt32*)p->dataStartPtr + startPos, tLines, p->lineLen);
+        break;
+    case NT_I64:
+        SwapEvenT((SInt64*)p->dataStartPtr + startPos, tLines, p->lineLen);
+        break;
+    case (NT_I64 | NT_UNSIGNED):
+        SwapEvenT((UInt64*)p->dataStartPtr + startPos, tLines, p->lineLen);
         break;
     case NT_FP32:
         SwapEvenT ((float*)p->dataStartPtr + startPos, tLines, p->lineLen);
@@ -390,35 +398,70 @@ void* DownSampleThread (void* threadarg){
                     break;
             }
             break;
+
+        case (NT_I64 | NT_UNSIGNED):
+            switch (DSType) {
+            case 1:    //average
+                DSaverageT((UInt64*)dataStartPtr + startPos, tPoints, boxFactor);
+                break;
+            case 2: // sum
+                DSsumUnSignedIntT((UInt64*)dataStartPtr + startPos, tPoints, boxFactor, (UInt64)ULLONG_MAX);
+                break;
+            case 3: //max
+                DSMaxT((UInt64*)dataStartPtr + startPos, tPoints, boxFactor);
+                break;
+            case 4: // median
+                DSMedianT((UInt64*)dataStartPtr + startPos, tPoints, boxFactor);
+                break;
+            }
+            break;
+        case NT_I64:
+            switch (DSType) {
+            case 1:    //average
+                DSaverageT((SInt64*)dataStartPtr + startPos, tPoints, boxFactor);
+                break;
+            case 2: // sum
+                DSsumSignedIntT((SInt64*)dataStartPtr + startPos, tPoints, boxFactor, (SInt64)LLONG_MAX, (SInt64)LLONG_MIN);
+                break;
+            case 3: //max
+                DSMaxT((SInt64*)dataStartPtr + startPos, tPoints, boxFactor);
+                break;
+            case 4: // median
+                DSMedianT((SInt64*)dataStartPtr + startPos, tPoints, boxFactor);
+                break;
+            }
+            break;
+
+
         case (NT_I32 | NT_UNSIGNED):
             switch (DSType){
                 case 1:    //average
-                    DSaverageT ((unsigned long*) dataStartPtr + startPos, tPoints, boxFactor);
+                    DSaverageT ((UInt32*) dataStartPtr + startPos, tPoints, boxFactor);
                     break;
                 case 2: // sum
-                    DSsumUnSignedIntT ((unsigned long*)dataStartPtr + startPos, tPoints, boxFactor,(unsigned long)ULONG_MAX);
+                    DSsumUnSignedIntT ((UInt32*)dataStartPtr + startPos, tPoints, boxFactor,(UInt32)ULONG_MAX);
                     break;
                 case 3: //max
-                    DSMaxT ((unsigned long*)dataStartPtr + startPos, tPoints, boxFactor);
+                    DSMaxT ((UInt32*)dataStartPtr + startPos, tPoints, boxFactor);
                     break;
                 case 4: // median
-                    DSMedianT ((unsigned long*)dataStartPtr + startPos, tPoints, boxFactor);
+                    DSMedianT ((UInt32*)dataStartPtr + startPos, tPoints, boxFactor);
                     break;
             }
             break;
         case NT_I32:
             switch (DSType){
                 case 1:    //average
-                    DSaverageT ((long*) dataStartPtr + startPos, tPoints, boxFactor);
+                    DSaverageT ((SInt32*) dataStartPtr + startPos, tPoints, boxFactor);
                     break;
                 case 2: // sum
-                    DSsumSignedIntT ((long*)dataStartPtr + startPos, tPoints, boxFactor,(long)LONG_MAX, (long)LONG_MIN);
+                    DSsumSignedIntT ((SInt32*)dataStartPtr + startPos, tPoints, boxFactor,(SInt32)LONG_MAX, (SInt32)LONG_MIN);
                     break;
                 case 3: //max
-                    DSMaxT ((long*)dataStartPtr + startPos, tPoints, boxFactor);
+                    DSMaxT ((SInt32*)dataStartPtr + startPos, tPoints, boxFactor);
                     break;
                 case 4: // median
-                    DSMedianT ((long*)dataStartPtr + startPos, tPoints, boxFactor);
+                    DSMedianT ((SInt32*)dataStartPtr + startPos, tPoints, boxFactor);
                     break;
             }
             break;
@@ -675,12 +718,6 @@ void* TransposeFramesThread (void* threadarg){
     if (p->ti == p->tN - 1) tFrames += (p->zSize % p->tN); // the last thread gets any left-over frames
     if (p->xSize == p->ySize){
         switch (p->inPutWaveType) {
-            case NT_I64:
-                TransposeSquareFramesT (((SInt64*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
-                break;
-            case (NT_I64 | NT_UNSIGNED):
-                TransposeSquareFramesT (((UInt64*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
-                break;
             case NT_FP64:
                 TransposeSquareFramesT (((double*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
                 break;
@@ -688,10 +725,16 @@ void* TransposeFramesThread (void* threadarg){
                 TransposeSquareFramesT (((float*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
                 break;
             case (NT_I32 | NT_UNSIGNED):
-                TransposeSquareFramesT (((unsigned long*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
+                TransposeSquareFramesT (((UInt32*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
                 break;
             case NT_I32:
-                TransposeSquareFramesT (((long*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
+                TransposeSquareFramesT (((UInt32*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
+                break;
+            case (NT_I64 | NT_UNSIGNED):
+                TransposeSquareFramesT(((UInt64*)p->dataStartPtr) + startOffset, p->xSize, tFrames);
+                break;
+            case NT_I64:
+                TransposeSquareFramesT(((SInt64*)p->dataStartPtr) + startOffset, p->xSize, tFrames);
                 break;
             case (NT_I16 | NT_UNSIGNED):
                 TransposeSquareFramesT (((unsigned short*) p->dataStartPtr) + startOffset, p->xSize, tFrames);
@@ -715,11 +758,18 @@ void* TransposeFramesThread (void* threadarg){
             case NT_FP32:
                 TransposeFramesT (((float*) p->dataStartPtr) + startOffset, ((float*) p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
                 break;
+            case (NT_I64 | NT_UNSIGNED):
+                TransposeFramesT(((UInt64*)p->dataStartPtr) + startOffset, ((UInt64*)p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
+                break;
+            case NT_I64:
+                TransposeFramesT(((SInt64*)p->dataStartPtr) + startOffset, ((SInt64*)p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
+                break;
+
             case (NT_I32 | NT_UNSIGNED):
-                TransposeFramesT (((unsigned long*) p->dataStartPtr) + startOffset, ((unsigned long*) p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
+                TransposeFramesT (((UInt32*) p->dataStartPtr) + startOffset, ((UInt32*) p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
                 break;
             case NT_I32:
-                TransposeFramesT (((long*) p->dataStartPtr) + startOffset, ((long*)p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
+                TransposeFramesT (((SInt32*) p->dataStartPtr) + startOffset, ((SInt32*)p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);
                 break;
             case (NT_I16 | NT_UNSIGNED):
                 TransposeFramesT (((unsigned short*) p->dataStartPtr) + startOffset, ((unsigned short*)p->bufferPtr) + bufferOffset, p->xSize, p->ySize, tFrames);

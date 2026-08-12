@@ -2,8 +2,8 @@
 
 /* ------------------------------Minimum/Maximum/Avg/Median Intensity Projections----------------------
  Code for making Minimum/Maximum/Avg/Median Intensity Projections along X,Y, and Z axes
- Last Modified 2025/06/25 by Jamie Boyd
- 
+ Last Modified 2026/08/11 by Jamie Boyd - changed long to SInt32 and unsigned long to SInt32 and added support for 64 bit Integer waves
+
  ProjectAllFrames and ProjectSpecFrames make a projection image of a 3D wave, either into a 2D wave,
  or by collapsing the input 3D wave into 2D. The differences between ProjectAllFrames and ProjectSpecFrames:
   1 ProjectAllFrames makes a project image of ALL the layers in a 3D wave, while ProjectSpecFrames does a projection over a
@@ -316,10 +316,16 @@ void* ProjectThread (void* threadarg){
                     doProjectX((unsigned short*)p->inPutDataStartPtr , (unsigned short*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
                     break;
                 case NT_I32:
-                    doProjectX((long*)p->inPutDataStartPtr, (long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    doProjectX((SInt32*)p->inPutDataStartPtr, (SInt32*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
                     break;
                 case (NT_I32| NT_UNSIGNED):
-                    doProjectX((unsigned long*)p->inPutDataStartPtr, (unsigned long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    doProjectX((UInt32*)p->inPutDataStartPtr, (UInt32*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_I64:
+                    doProjectX((SInt64*)p->inPutDataStartPtr, (SInt64*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I64 | NT_UNSIGNED):
+                    doProjectX((UInt64*)p->inPutDataStartPtr, (UInt64*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
                     break;
                 case NT_FP32:
                     doProjectX((float*)p->inPutDataStartPtr, (float*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
@@ -344,10 +350,16 @@ void* ProjectThread (void* threadarg){
                     doProjectY((unsigned short*)p->inPutDataStartPtr , (unsigned short*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
                     break;
                 case NT_I32:
-                    doProjectY((long*)p->inPutDataStartPtr, (long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    doProjectY((SInt32*)p->inPutDataStartPtr, (SInt32*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
                     break;
                 case (NT_I32| NT_UNSIGNED):
-                    doProjectY((unsigned long*)p->inPutDataStartPtr, (unsigned long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    doProjectY((UInt32*)p->inPutDataStartPtr, (UInt32*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_I64:
+                    doProjectY((SInt64*)p->inPutDataStartPtr, (SInt64*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I64 | NT_UNSIGNED):
+                    doProjectY((UInt64*)p->inPutDataStartPtr, (UInt64*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
                     break;
                 case NT_FP32:
                     doProjectY((float*)p->inPutDataStartPtr, (float*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->zSize, p->startP, p->endP, p->ti, p->tN);
@@ -372,10 +384,16 @@ void* ProjectThread (void* threadarg){
                     doProjectZ((unsigned short*)p->inPutDataStartPtr , (unsigned short*)p->outPutDataStartPtr,  p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
                     break;
                 case NT_I32:
-                    doProjectZ((long*)p->inPutDataStartPtr, (long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    doProjectZ((SInt32*)p->inPutDataStartPtr, (SInt32*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
                     break;
                 case (NT_I32| NT_UNSIGNED):
-                    doProjectZ((unsigned long*)p->inPutDataStartPtr, (unsigned long*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    doProjectZ((UInt32*)p->inPutDataStartPtr, (UInt32*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case NT_I64:
+                    doProjectZ((SInt64*)p->inPutDataStartPtr, (SInt64*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
+                    break;
+                case (NT_I64 | NT_UNSIGNED):
+                    doProjectZ((UInt64*)p->inPutDataStartPtr, (UInt64*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
                     break;
                 case NT_FP32:
                     doProjectZ((float*)p->inPutDataStartPtr, (float*)p->outPutDataStartPtr, p->projMode, p->xSize, p->ySize, p->startP, p->endP, p->ti, p->tN);
@@ -500,7 +518,11 @@ extern "C" int ProjectSpecFrames (ProjectSpecFramesParamsPtr p){
             break;
         case NT_I32:
         case (NT_I32 | NT_UNSIGNED):
-            destWaveStart += sizeof(long) * (outPutP * outPutDimensionSizes[0] * outPutDimensionSizes [1]);
+            destWaveStart += sizeof(UInt32) * (outPutP * outPutDimensionSizes[0] * outPutDimensionSizes [1]);
+            break;
+        case NT_I64:
+        case (NT_I64 | NT_UNSIGNED):
+            destWaveStart += sizeof(UInt64) * (outPutP * outPutDimensionSizes[0] * outPutDimensionSizes[1]);
             break;
         case NT_FP32:
             destWaveStart += sizeof(float) * (outPutP * outPutDimensionSizes[0] * outPutDimensionSizes [1]);
