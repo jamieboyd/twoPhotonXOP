@@ -20,7 +20,8 @@ template <typename T> int KalmanT(T *srcWaveStart, T *destWaveStart, CountInt pi
 		CountInt pixPerLayer = pixPerThread + pixToNextFrame;
 		T* srcWaveEnd = srcWaveStart + (numLayers * pixPerLayer);
 		CountInt toNextSrcPix = (numLayers * pixPerLayer) - 1;
-		for (srcWave = srcWaveStart, destWave = destWaveStart ; destWave < destWaveEnd ; srcWave -= toNextSrcPix, destWave ++){			for (tempVal =0; srcWave < srcWaveEnd; srcWave += pixPerLayer)
+		for (srcWave = srcWaveStart, destWave = destWaveStart ; destWave < destWaveEnd ; srcWave -= toNextSrcPix, destWave ++){
+            for (tempVal =0; srcWave < srcWaveEnd; srcWave += pixPerLayer)
 			tempVal += *srcWave;
             *destWave = tempVal/numLayers;
 		}
