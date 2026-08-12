@@ -8,7 +8,6 @@ Menu "Macros"
 End
 
 
-
 // runs a battery of test functions
 function test_twoPhotonXOP ()
 	// make sure XOP is loaded
@@ -28,10 +27,11 @@ function test_twoPhotonXOP ()
 	//timer stuff
 	variable testNum =0
 	Variable timerRefNum, timerMicroSeconds
-	make/o/d/n=27 root:testScores
+	make/o/d/n=28 root:testScores
 	WAVE testScores = root:testScores
+	testScores =0
 	setscale d 0, 0, "s" testScores 
-	make/o/t/n=27 root:testType
+	make/o/t/n=28 root:testType
 	WAVE/T testType = root:testType
 	// How many cores?
 	printf "%d processor cores are available to twoPhotonXOP.\r", GetSetNumProcessors()
@@ -256,8 +256,6 @@ function test_twoPhotonXOP ()
 	testNum +=1
 	sleep/S 2
 	
-	//DoAlert /T="Testing twoPhotonXOP" 0, "Project Frames"
-	
 	// close all 2p graph windows
 	closeTwoPGraphs()
 	doUpdate
@@ -318,7 +316,7 @@ function test_twoPhotonXOP ()
 	
 	// LSM utilities
 	// swap even
-	execute "twoPxop_theStack()";doupdate;doupdate;sleep/S 0.5
+	execute "twoPxop_theStack()";doupdate;sleep/S 0.5
 	testType [testNum]="SwapEven x 2"
 	testScores [testNum] =0
 	timerRefNum = StartMSTimer
@@ -337,7 +335,7 @@ function test_twoPhotonXOP ()
 	
 	// transpose frames
 	testType [testNum]="Transpose Frames x 2"
-	testScores [testNum] =0
+	testScores [testNum] = 0
 	timerRefNum = StartMSTimer
 	TransposeFrames(theStack)
 	timerMicroSeconds = StopMSTimer(timerRefNum)
@@ -352,6 +350,29 @@ function test_twoPhotonXOP ()
 	DoWindow/T twoPxop_theStack "Transpose Frames Twice"
 	doupdate;sleep/S 2
 	
+	// fast Integer copy
+	testType [testNum]="Fast Integer Copy X 2"
+	testScores [testNum] =0
+	make/o/w/n=(1000 * 500 *300) root:fastIntCopyWave
+	WAVE fastIntCopyWave = root:fastIntCopyWave
+	fastIntCopyWave =0
+	execute "twoPxop_fastIntCopy()"
+	doupdate;sleep/S 2
+	timerRefNum = StartMSTimer
+	FastIntCopy(theStack, 0, fastIntCopyWave, 0, 0, 1)
+	timerMicroSeconds = StopMSTimer(timerRefNum)
+	testScores [testNum] += timerMicroSeconds/1E6
+	doupdate;sleep/S 2
+	theStack =0 
+	doupdate;sleep/S 1
+	timerRefNum = StartMSTimer
+	FastIntCopy(fastIntCopyWave, 0, theStack , 0, 0, 1)
+	timerMicroSeconds = StopMSTimer(timerRefNum)
+	testScores [testNum] += timerMicroSeconds/1E6
+	testNum += 1
+	DoWindow/T twoPxop_theStack "FastIntCopy from signed 1D to Unsigned 3D"
+	doupdate;sleep/S 2
+	
 	//Decumulate
 	closeTwoPGraphs()
 	AccData(12, (2^4 + 2^6), 4)
@@ -361,7 +382,7 @@ function test_twoPhotonXOP ()
 	timerRefNum = StartMSTimer
 	Decumulate (theStack, 12)
 	timerMicroSeconds = StopMSTimer(timerRefNum)
-	testScores [testNum] += timerMicroSeconds/1E6
+	testScores [testNum] = timerMicroSeconds/1E6
 	testNum += 1
 	ModifyImage/W=twoPxop_Decumulate theStack ctab= {*,*,Rainbow,1}
 	doupdate;sleep/S 2
@@ -370,7 +391,7 @@ function test_twoPhotonXOP ()
 	
 	closeTwoPGraphs()
 	
-	KillWaves/z root:theStack,root:Convolve_Out,root:KalmanAllFrames_out,root:KalmanSpecFrames_out
+	KillWaves/z root:theStack,root:Convolve_Out,root:KalmanAllFrames_out,root:KalmanSpecFrames_out, root:FastIntCopyWave
 	KillWaves/Z root:KalmanWaveToFrame_out,root:ProjectFrames_output_x,root:ProjectFrames_output_y,root:ProjectFrames_output_z
 	testType [testNum] = "Total Time"
 	variable timeScore = sum (testScores)
@@ -460,6 +481,8 @@ Window twoPxop_theStack() : Graph
 	ModifyGraph btLen=3
 	ModifyGraph tlOffset=-2
 EndMacro
+
+
 
 Window twoPxop_KalmanWaveToFrame_out() : Graph
 	PauseUpdate; Silent 1		// building window...
@@ -599,6 +622,16 @@ Window twoPxop_Convole_Out() : Graph
 	SetAxis/A/R left
 EndMacro
 
+
+Window twoPxop_fastIntCopy() : Graph
+	PauseUpdate; Silent 1		// building window...
+	Display /W=(646.5,40.25,1283.25,288.5) fastIntCopyWave as "fastIntCopy from Unsigned 3D to signed 1D"
+	ModifyGraph mode=2
+	ModifyGraph rgb=(0,0,0)
+	SetAxis left 0,4096
+	SetAxis bottom 0,10000
+EndMacro
+
 Window twoPxop_Decumulate() : Graph
 	PauseUpdate; Silent 1		// building window...
 	Display /W=(24,102,943,665) as "Decumulate"
@@ -616,3 +649,72 @@ Window twoPxop_Decumulate() : Graph
 	ModifyGraph btLen=3
 	ModifyGraph tlOffset=-2
 EndMacro
+
+
+// Stand alone function to compare FastIntegerCopy XOP function performance to that of the
+// IgorScript code it was written to replace. Copying from signed 16 word to unsigned word,
+// with clipping. Example run on slow older computer with 4 cores results like this:
+//  IgorScript method = 5.01s
+//  IgorScript method using multiThread = 1.62s
+//  FastIntCopy = 12.73ms
+function CompareFastIntegerCopy ()
+	
+	make/o/w/n=(1000 * 500 * 30) root:theData
+	WAVE theData = root:theData
+	make/o/w/u/n =(1000,500,30) root:theStack
+	WAVE theStack = root:theStack
+	// mimic a noisy 12 bit A/D image stack
+	MultiThread /NT=(ThreadProcessorCount) theStack = (2^11) + (2^10) * (sin ((x-z)/60) * cos ((y+z)/40)) + enoise (2^10)
+	fastIntCopy (theStack, 0, theData, 0, 0, 1)
+	variable timerRef
+	variable timerMicroSeconds
+	variable pixWidth = 1000
+	variable framePoints = 1000 * 500
+	
+	timerRef = startMSTimer
+	theStack = theData [r*framePoints + (q * pixWidth)  + p]
+	theStack =  theStack > 32767 ? 0 :  theStack
+	timerMicroSeconds = StopMSTimer(timerRef)
+	printf "IgorScript method = %.2W0Ps\r" , timerMicroSeconds/1E6
+	timerRef = startMSTimer
+	multiThread/NT=(ThreadProcessorCount) theStack = theData [r*framePoints + (q * pixWidth)  + p]
+	multiThread/NT=(ThreadProcessorCount) theStack =  theStack > 32767 ? 0 :  theStack
+	timerMicroSeconds = StopMSTimer(timerRef)
+	printf "IgorScript method using multiThread = %.2W0Ps\r" , timerMicroSeconds/1E6
+	fastop theStack=0
+	timerRef = startMSTimer
+	fastIntCopy (theData, 0,theStack , 0, 0, 1)
+	timerMicroSeconds = StopMSTimer(timerRef)
+	printf "FastIntCopy = %.2W0Ps\r" , timerMicroSeconds/1E6
+end
+
+// Stand alone function to compare performance of zeroing a wave 
+// with different methods. Results on slow older computer
+// with 4 cores results like this: 
+//  Zero wave normally = 594.78ms
+//  Zero wave with fastOp = 7.01ms
+//  Zero wave with multiThread = 164.29ms
+ function fastOPtest ()
+  	
+	make/o/w/u/n =(1000,500,30) root:theStack
+	WAVE theStack = root:theStack
+	
+	variable timerRef
+	variable timerMicroSeconds
+	timerRef = startMSTimer
+	theStack =0
+	timerMicroSeconds = StopMSTimer(timerRef)
+	printf "Zero wave normally = %.2W0Ps\r" , timerMicroSeconds/1E6
+	
+	timerRef = startMSTimer
+	fastop theStack =0
+	timerMicroSeconds = StopMSTimer(timerRef)
+	printf "Zero wave with fastOp = %.2W0Ps\r" , timerMicroSeconds/1E6
+
+	
+	timerRef = startMSTimer
+	multiThread/NT=(ThreadProcessorCount) theStack =0
+	timerMicroSeconds = StopMSTimer(timerRef)
+	printf "Zero wave with multiThread = %.2W0Ps\r" , timerMicroSeconds/1E6
+
+end
