@@ -1071,23 +1071,22 @@ int Decumulate (DecumulateParamsPtr p) {
             paramArrayPtr[iThread].maxCount = maxCount; // 2^counterBits -1. maximum count before counter rollover
             switch (waveType) {
                 case NT_I8:
-                    if (maxCount > 127) throw result = NUMTYPE;
+                    if (maxCount > SCHAR_MAX) throw result = NUMTYPE;
                     paramArrayPtr[iThread].savedPrevValue = *(((SInt8*)srcWaveStart) + (iThread * tPoints));
                     break;
                 case (NT_I8 | NT_UNSIGNED):
-                    if (maxCount > 255) throw result = NUMTYPE;
+                    if (maxCount > UCHAR_MAX) throw result = NUMTYPE;
                     paramArrayPtr[iThread].savedPrevValue = *(((UInt8*)srcWaveStart) + (iThread * tPoints));
                     break;
                 case NT_I16:
-                    if (maxCount > 32767) throw result = NUMTYPE;
+                    if (maxCount > SHRT_MAX) throw result = NUMTYPE;
                     paramArrayPtr[iThread].savedPrevValue = *(((SInt16*)srcWaveStart) + (iThread * tPoints));
                     break;
                 case (NT_I16 | NT_UNSIGNED):
-                    if (maxCount > 65535) throw result = NUMTYPE;
+                    if (maxCount > USHRT_MAX) throw result = NUMTYPE;
                     paramArrayPtr[iThread].savedPrevValue = *(((UInt16*)srcWaveStart) + (iThread * tPoints));
                     break;
                 case (NT_I32):
-                    if (maxCount > INT_MAX) throw result = NUMTYPE;
                     paramArrayPtr[iThread].savedPrevValue = *(((SInt32*)srcWaveStart) + (iThread * tPoints));
                     break;
                 case (NT_I32 | NT_UNSIGNED):
@@ -1240,28 +1239,28 @@ void* FastIntCopyRotThread (void* threadarg){
     if (ti == (tN - 1)) pixPerThread += (numCopyPoints % tN); // last thread gets any extra pixels
     switch (p->srcWaveType) {
         case (NT_I8 | NT_UNSIGNED):
-            FastIntCopyRotT ((unsigned char*)p->srcDataStartPtr  + startPos + srcPointOffset, (char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (char)-128);
+            FastIntCopyRotT ((unsigned char*)p->srcDataStartPtr  + startPos + srcPointOffset, (char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (char)SCHAR_MIN);
             break;
         case (NT_I16 | NT_UNSIGNED):
-            FastIntCopyRotT ((unsigned short*)p->srcDataStartPtr  + startPos + srcPointOffset, (short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (short)-32768);
+            FastIntCopyRotT ((unsigned short*)p->srcDataStartPtr  + startPos + srcPointOffset, (short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (short)SHRT_MIN);
             break;
         case (NT_I32| NT_UNSIGNED):
-           FastIntCopyRotT ((UInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt32)-2147483648);
+           FastIntCopyRotT ((UInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt32)LONG_MIN);
             break;
         case (NT_I64| NT_UNSIGNED):
-            FastIntCopyRotT ((UInt64*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt64*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt64)-9223372036854775808);
+            FastIntCopyRotT ((UInt64*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt64*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt64)LLONG_MIN);
             break;
         case (NT_I8):
-            FastIntCopyRotT ((char*)p->srcDataStartPtr  + startPos + srcPointOffset, (unsigned char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned char)128);
+            FastIntCopyRotT ((char*)p->srcDataStartPtr  + startPos + srcPointOffset, (unsigned char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned char)UCHAR_MAX);
             break;
         case (NT_I16):
-            FastIntCopyRotT ((short*)p->srcDataStartPtr  + startPos + srcPointOffset, (unsigned short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned short)32768);
+            FastIntCopyRotT ((short*)p->srcDataStartPtr  + startPos + srcPointOffset, (unsigned short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned short)USHRT_MAX);
             break;
         case (NT_I32):
-            FastIntCopyRotT ((SInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (UInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (UInt32)2147483648);
+            FastIntCopyRotT ((SInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (UInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (UInt32)LONG_MAX);
             break;
         case (NT_I64):
-            FastIntCopyRotT ((SInt64*)p->srcDataStartPtr + startPos, (UInt64*) p->destDataStartPtr + startPos, pixPerThread, (UInt64)9223372036854775808);
+            FastIntCopyRotT ((SInt64*)p->srcDataStartPtr + startPos, (UInt64*) p->destDataStartPtr + startPos, pixPerThread, (UInt64)LLONG_MAX);
             break;
     }
     return nullptr;
@@ -1296,16 +1295,16 @@ void* FastIntCopyStoUclipThread (void* threadarg){
     if (ti == (tN - 1)) pixPerThread += (numCopyPoints % tN); // last thread gets any extra pixels
     switch (p->srcWaveType) {
         case (NT_I8):
-            FastIntCopyStoUclipT ((char*)p->srcDataStartPtr + startPos + srcPointOffset, (unsigned char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned char)127);
+            FastIntCopyStoUclipT ((char*)p->srcDataStartPtr + startPos + srcPointOffset, (unsigned char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned char)SCHAR_MAX);
             break;
         case (NT_I16):
-            FastIntCopyStoUclipT ((short*)p->srcDataStartPtr  + startPos + srcPointOffset, (unsigned short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned short)32767);
+            FastIntCopyStoUclipT ((short*)p->srcDataStartPtr  + startPos + srcPointOffset, (unsigned short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (unsigned short)SHRT_MAX);
             break;
         case (NT_I32):
-            FastIntCopyStoUclipT ((SInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (UInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (UInt32)2147483647);
+            FastIntCopyStoUclipT ((SInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (UInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (UInt32)LONG_MAX);
             break;
         case (NT_I64):
-              FastIntCopyStoUclipT ((SInt64*)p->srcDataStartPtr + startPos + srcPointOffset, (UInt64*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (UInt64)9223372036854775807);
+              FastIntCopyStoUclipT ((SInt64*)p->srcDataStartPtr + startPos + srcPointOffset, (UInt64*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (UInt64)LLONG_MAX);
               break;
     }
     return nullptr;
@@ -1342,16 +1341,16 @@ void* FastIntCopyUtoSclipThread (void* threadarg){
     if (ti == (tN - 1)) pixPerThread += (numCopyPoints % tN); // last thread gets any extra pixels
     switch (p->srcWaveType) {
         case (NT_I8 | NT_UNSIGNED):
-            FastIntCopyUtoSclipT ((unsigned char*)p->srcDataStartPtr  + startPos + srcPointOffset, (char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (char)127);
+            FastIntCopyUtoSclipT ((unsigned char*)p->srcDataStartPtr  + startPos + srcPointOffset, (char*)p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (char)SCHAR_MAX);
             break;
         case (NT_I16 | NT_UNSIGNED):
-           FastIntCopyUtoSclipT ((unsigned short*)p->srcDataStartPtr  + startPos + srcPointOffset, (short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (short)32767);
+           FastIntCopyUtoSclipT ((unsigned short*)p->srcDataStartPtr  + startPos + srcPointOffset, (short*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (short)SHRT_MAX);
             break;
         case (NT_I32| NT_UNSIGNED):
-            FastIntCopyUtoSclipT ((UInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt32)2147483647);
+            FastIntCopyUtoSclipT ((UInt32*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt32*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt32)LONG_MAX);
             break;
         case (NT_I64| NT_UNSIGNED):
-            FastIntCopyUtoSclipT ((UInt64*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt64*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt64)9223372036854775807);
+            FastIntCopyUtoSclipT ((UInt64*)p->srcDataStartPtr + startPos + srcPointOffset, (SInt64*) p->destDataStartPtr + startPos + destPointOffset, pixPerThread, (SInt64)LLONG_MAX);
             break;
     }
     return nullptr;
