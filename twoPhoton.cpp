@@ -79,6 +79,9 @@ static XOPIORecResult RegisterFunction() {
 	case 18:
 		return ((XOPIORecResult)MedianFrames);
 		break;
+    case 19:
+        return ((XOPIORecResult)SwapEvenReverseEven);
+        break;
 	}
 	return 0;
 }

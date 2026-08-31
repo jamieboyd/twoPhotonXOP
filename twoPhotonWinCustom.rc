@@ -210,6 +210,12 @@ BEGIN
 	NT_FP64,
 	NT_FP64,
 	0,
+ 
+     "SwapEvenReverseEven\0"
+    F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+    NT_FP64,
+    WAVE_TYPE,
+    0,
 
 "\0"								// NOTE: NULL required to terminate the resource.
 END

@@ -3,9 +3,7 @@
 
 /* ------------------------------LSM Utilities --------------------------------------------------
 utility functions specialized for Laser Scanning Microscope data acquisition
- Last Modified 2026/08/11 by Jamie Boyd - changed long to SInt32 and unsigned long to SInt32 and added support for 64 bitInteger waves and added FastIntCopy
- 
-
+ Last Modified 2026/08/11 by Jamie Boyd - changed long to SInt32 and unsigned long to SInt32 and added support for 64 bit Integer waves and added FastIntCopy
  -------------------------------------------------------------------------------------------------*/
  
 /* --------------------------- GetSetNumProcessors--------------------------------------------
@@ -16,11 +14,6 @@ extern "C" int GetSetNumProcessors(GetSetNumProcessorsParamsPtr p){
     p->result = (double)gNumProcessors;
     return (0);
 }
-
-/*
-FastSignedToUnsigned only works with signed input waves and unsigned output waves. 
-
-*/
 
 
 /* -------------------------------- SwapEven -------------------------------------------------------
@@ -69,10 +62,10 @@ void* SwapEvenThread (void* threadarg){
     struct SwapEvenThreadParams* p;
     p = (struct SwapEvenThreadParams*) threadarg;
     CountInt tLines = (p-> numLines/p->tN);
-    if (tLines % 2) tLines--; // make sure number of lines per thread is even
+    if (tLines % 2) tLines -= 1; // make sure number of lines per thread is even
     CountInt startPos = p->ti * tLines * p->lineLen;
     // the last thread gets any left-over lines
-    if (p->ti == p->tN - 1) tLines +=  (p->numLines % p->tN);
+    if (p->ti == p->tN - 1) tLines += (p->numLines % p->tN);
     // call the right template function for the wave types
     switch (p->inPutWaveType) {
     case NT_I8:
@@ -104,7 +97,6 @@ void* SwapEvenThread (void* threadarg){
         break;
     case NT_FP64:
         SwapEvenT ((double*)p->dataStartPtr + startPos, tLines, p->lineLen);
-        break;
         break;
     }
     return nullptr;
@@ -194,6 +186,228 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
     p -> result = (0);
     return (0);
 }
+
+/* ------------------------------ SwapEvenReverseEven ------------------------------------------------------
+ horizontally swaps every other line in an image or series of images plus vertically reverses every other frame
+ Used after doing double back and forth scanning, where every other line is scanned from the opposite direction
+ and every other frame is scanned from the oppoite direction in Y
+ ----------------------------------------------------------------------------------------------------- */
+
+
+//preprocessor macro to swap 4 values
+#define SWAP4(a,b,c,d) temp=(d);(d)=(c);(c)=(b);(b)=(a);(a)=temp;
+
+
+/* Function Template for SwapEvenReverseEven function
+ every other frame needs to reversed in Y as well as every other line swapped in X
+ The function expects to get a pointer (dataStartPtr) to the start of an odd numbered frame, i.e., not reversed
+ CoutInt numFrames is number of frames to process, it may be even or odd
+ CountInt numLines is the number of lines in each frame, not total number of lines as in swapFrames,
+ because we need to track frames,
+ Last Modified 2026/08/27 by Jamie Boyd */
+template <typename T> void SwapEvenReverseEvenT (T *dataStartPtr, CountInt numFrames, CountInt numLines, CountInt lineWidth) {
+    
+    // variable used for swapping
+    T temp;
+    // calculate frame size
+    CountInt frameSize = numLines * lineWidth;
+    // calculate end of data
+    T *dataEndPtr = dataStartPtr + (numFrames  * frameSize);
+    // half values are used for y swapping
+    CountInt halfWidth = lineWidth/2;
+    CountInt halfFrame = frameSize/2;
+    // calculate jumps to next Swap X frame for pSL and pEL after finishing a reverse Y frame
+    CountInt toNextSwapFrame = halfFrame + lineWidth;
+    // calculate distance to pSU and pEU from initialized pSL and PEL for a reverse Y frame
+    CountInt fromLtoU = (numLines -1) * lineWidth;
+    // calculate value to add/subtract to get to next line for pSL and pEU
+    CountInt toNextpSLEU = halfWidth;
+    CountInt toNextpSUEL = lineWidth + halfWidth;
+    // values needed for X swapping
+    CountInt toNextLineStart = (2 * lineWidth) - (lineWidth/2);    //due to rounding of integer math, it doesn't matter if LineWidth is even or odd
+    CountInt toNextLineEnd = (2 * lineWidth) + (lineWidth/2);
+    // pointers initialized to the start and end of the line at the upper and lower bounds of the frame (the 4 corners)
+    T *pSL, *pSU, *pEL, *pEU;
+    // will point to end of loop through a frame of data, when Y swapping it only needs to be half a frame
+    T *frameEnd;
+    for ( pSL = dataStartPtr + lineWidth - toNextSwapFrame, pEL = dataStartPtr + 2*lineWidth - 1 - toNextSwapFrame; ; ){
+        // start of a swap X frame, outer loop goes by line by line, inner loop swaps values for a single line
+        for (pSL += toNextSwapFrame, pEL += toNextSwapFrame, frameEnd = pSL + frameSize ; pSL < frameEnd && pSL < dataEndPtr ; pSL += toNextLineStart, pEL += toNextLineEnd){
+            for (; pSL < pEL ; pSL++, pEL-- ){
+                SWAP (*pSL, *pEL);
+            }
+        } // end of a swap X frame
+        if (pSL > dataEndPtr) break; // number of frames may be odd, so we may end on a swap X frame
+        // start of a Reverse Y frame
+        for (pSL -= lineWidth,  pSU = pSL + fromLtoU, pEL -= lineWidth, pEU = pEL + fromLtoU, frameEnd = pSL + halfFrame ; pSL < frameEnd  ; pSL += toNextpSLEU, pSU -= toNextpSUEL, pEL += toNextpSUEL, pEU -= toNextpSLEU){
+            // Y swap 2 lines where lower line is X swapped and upper line is not
+            for (; pSL < pEL; pSL +=1, pSU +=1, pEL -=1, pEU -=1){
+                SWAP4(*pSL, *pSU, *pEL, *pEU);
+            }
+            pSL += toNextpSLEU;
+            pSU -= toNextpSUEL;
+            pEL += toNextpSUEL;
+            pEU -= toNextpSLEU;
+            // if number of lines is not divisible by 4, we may have run out of lines, so check
+            if (pEU > frameEnd) break;
+            // Y swap 2 lines where lower line is not X swapped and upper line is X swapped
+            for (; pSL < pEL; pSL +=1, pSU +=1, pEL -=1, pEU -=1){
+                SWAP4(*pSL, *pEU, *pEL, *pSU);
+            }
+        } // end of a Reverse Y frame
+    } // end of frames
+}
+ 
+
+/* Structure to pass data to each SwapEvenReverseEven Thread
+Last Modified 2026/08/27 by Jamie Boyd */
+typedef struct SwapEvenReverseEvenThreadParams{
+    int inPutWaveType;
+    char* dataStartPtr;
+    CountInt numFrames;
+    CountInt numLines;
+    CountInt lineWidth;
+    UInt8 ti; // number of this thread, starting from 0
+    UInt8 tN; // total number of threads (255 "should be enough for anyone")
+}SwapEvenReverseEvenThreadParams, *SwapEvenReverseEvenThreadParamsPtr;
+
+
+/* Each thread to swap a range of rows starts with this function
+ Last Modified 2026/08/27 by Jamie Boyd */
+void* SwapEvenReverseEvenThread (void* threadarg){
+    struct SwapEvenReverseEvenThreadParams* p;
+    p = (struct SwapEvenReverseEvenThreadParams*) threadarg;
+    // how many frames each thread gets
+    CountInt tFrames = (p->numFrames/p->tN);
+    // make sure frames per threrad is even, so each thread starts with a swap X frame
+    if (tFrames % 2) tFrames--; // make sure number of frames per thread is even
+    CountInt startPos = p->ti * tFrames * p->numLines * p->lineWidth;
+    // the last thread gets any left-over frames
+    if (p->ti == p->tN - 1) tFrames +=  (p->numFrames % p->tN);
+    // call the right template function for the wave types
+
+    switch (p->inPutWaveType) {
+    case NT_I8:
+        SwapEvenReverseEvenT ((char*) p->dataStartPtr + startPos, tFrames, p->numLines, p->lineWidth);
+        break;
+    case (NT_I8 | NT_UNSIGNED):
+            SwapEvenReverseEvenT ((unsigned char*)p->dataStartPtr + startPos, tFrames, p->numLines, p->lineWidth);
+        break;
+    case NT_I16:
+            SwapEvenReverseEvenT ((short*)p->dataStartPtr + startPos, tFrames, p->numLines, p->lineWidth);
+        break;
+    case (NT_I16 | NT_UNSIGNED):
+            SwapEvenReverseEvenT ((unsigned short*)p->dataStartPtr + startPos, tFrames, p->numLines, p->lineWidth);
+        break;
+    case NT_I32:
+            SwapEvenReverseEvenT ((SInt32*)p->dataStartPtr + startPos, tFrames, p->numLines, p->lineWidth);
+        break;
+    case (NT_I32| NT_UNSIGNED):
+            SwapEvenReverseEvenT ((UInt32*)p->dataStartPtr + startPos, tFrames, p->numLines, p->lineWidth);
+        break;
+    case NT_I64:
+            SwapEvenReverseEvenT((SInt64*)p->dataStartPtr + startPos, tFrames, p->numLines, p->lineWidth);
+        break;
+    case (NT_I64 | NT_UNSIGNED):
+            SwapEvenReverseEvenT((UInt64*)p->dataStartPtr + startPos, tFrames, p->numLines, p->lineWidth);
+        break;
+    case NT_FP32:
+            SwapEvenReverseEvenT ((float*)p->dataStartPtr + startPos, tFrames, p->numLines, p->lineWidth);
+        break;
+    case NT_FP64:
+            SwapEvenReverseEvenT ((double*)p->dataStartPtr + startPos, tFrames, p->numLines, p->lineWidth);
+        break;
+    }
+    return nullptr;
+}
+
+/* SwapEvenReverseEven XOP entry function
+ SwapEvenParams:
+ wave handle to start of data of input wave, which is overwrittten. For "double-turbo" mode where the Y galvo also reverses
+ direction instead of "flying back" at the end of the frame. Every other frame is collected in reverse order. We need to swap
+ even-numbered lines and reverse even-numbered frames.
+ 
+ result =  0 or error code
+ Last Modified 2026/08/27 by Jamie Boyd */
+extern "C" int SwapEvenReverseEven (SwapEvenParamsPtr p){
+    waveHndl wavH = nullptr;        // handle to the input wave
+    int waveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
+    int numDimensions;    // number of dimensions in input and output waves
+    CountInt dimensionSizes[MAX_DIMENSIONS+1];    // an array used to hold the width, height, layers, and chunk sizes
+    IndexInt dataOffset;    //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
+    CountInt lineWidth;    // The width of each line in the image
+    CountInt numLines;    // The number of lines in each frame
+    CountInt numFrames;     // the number of frames in each image
+    int result;    // The error returned from various Wavemetrics functions
+    char* dataStartPtr;    // Pointer to start of data in input wave. Need to use char for these to use WM function to get data offset
+    // Multi threading
+    UInt8 iThread, nThreads;
+    SwapEvenReverseEvenThreadParamsPtr paramArrayPtr = nullptr;
+    pthread_t* threadsPtr = nullptr;
+    try {
+        // Get handle to input wave. Make sure it exists.
+        wavH = p->w1;
+        if (wavH == nullptr) throw result = NON_EXISTENT_WAVE;
+        // Get wave data type.
+        waveType = WaveType(wavH);
+        // Can't process text waves
+        if (waveType == TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
+        // Get number of used dimensions in wave.
+        if (MDGetWaveDimensions(wavH, &numDimensions, dimensionSizes)) throw result = WAVEERROR_NOS;
+        // Check that wave1 is 3D
+        if (numDimensions != 3) throw result = INPUTNEEDS_3D_WAVE;
+        // Get dimension size info and calculate number of lines to process
+        lineWidth = dimensionSizes[0];
+        numLines = dimensionSizes[1];
+        numFrames = dimensionSizes[2];
+        // Get the offsets to the data in the wave
+        if (MDAccessNumericWaveData(wavH, kMDWaveAccessMode0, &dataOffset)) throw result = WAVEERROR_NOS;
+        dataStartPtr = (char*)(*wavH) + dataOffset;
+        // Multi threading
+        nThreads = gNumProcessors;
+        paramArrayPtr = (SwapEvenReverseEvenThreadParamsPtr)WMNewPtr(nThreads * sizeof(SwapEvenReverseEvenThreadParams));
+        if (paramArrayPtr == nullptr) throw result = MEMFAIL;
+        // make an array of pthread_t
+        threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+        if (threadsPtr == nullptr) throw result = MEMFAIL;
+    }catch (int result){
+        if (paramArrayPtr != nullptr) WMDisposePtr ((Ptr)paramArrayPtr);
+        if (threadsPtr != nullptr) WMDisposePtr ((Ptr)threadsPtr);
+        p -> result = (double)(result - FIRST_XOP_ERR);
+#ifdef NO_IGOR_ERR
+        return (0);
+#else
+        return (result);
+#endif
+    }
+    // fill threadParams array
+    for (iThread = 0; iThread < nThreads; iThread++){
+        paramArrayPtr[iThread].inPutWaveType = waveType;
+        paramArrayPtr[iThread].dataStartPtr = dataStartPtr;
+        paramArrayPtr[iThread].numFrames = numFrames;
+        paramArrayPtr[iThread].numLines = numLines;
+        paramArrayPtr[iThread].lineWidth = lineWidth;
+        paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
+        paramArrayPtr[iThread].tN =nThreads; // total number of threads
+    }
+    // create the threads
+    for (iThread = 0; iThread < nThreads; iThread++){
+        pthread_create (&threadsPtr[iThread], NULL, SwapEvenReverseEvenThread, (void *) &paramArrayPtr[iThread]);
+    }
+    // Wait till all the threads are finished
+    for (iThread = 0; iThread < nThreads; iThread++){
+        pthread_join (threadsPtr[iThread], NULL);
+    }
+    // free memory for pThreads Array
+    WMDisposePtr ((Ptr)threadsPtr);
+    // Free paramaterArray memory
+    WMDisposePtr ((Ptr)paramArrayPtr);
+    // Inform Igor that we have changed the input wave.
+    WaveHandleModified(wavH);
+    p -> result = (0);
+    return (0);
+}
+
 
 /* -------------------------------------DownSample--------------------------------------------------------
 Down Sample takes a wave and resizes its X dimension, combining boxfactor points by taking the

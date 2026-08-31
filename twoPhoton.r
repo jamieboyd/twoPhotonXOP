@@ -272,6 +272,13 @@ resource 'XOPF' (1100) {
             NT_FP64,    // Width over which to apply median
             NT_FP64,  // flag to overwrite existing waves.
         },
+        
+        "SwapEvenReverseEven",
+        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
+        NT_FP64,
+        {
+            WAVE_TYPE,        //InPutWave
+        },
 
     }
 };

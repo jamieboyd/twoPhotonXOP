@@ -228,6 +228,7 @@ HOST_IMPORT int XOPMain(IORecHandle ioRecHandle);
 //LSM Utilities
 extern "C" int GetSetNumProcessors(GetSetNumProcessorsParamsPtr p);
 extern "C" int SwapEven(SwapEvenParamsPtr);
+extern "C" int SwapEvenReverseEven (SwapEvenParamsPtr);
 extern "C" int DownSample(DownSampleParamsPtr p);
 extern "C" int Decumulate(DecumulateParamsPtr p);
 extern "C" int TransposeFrames(TransposeFramesParamsPtr p);
