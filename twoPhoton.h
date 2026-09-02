@@ -163,11 +163,18 @@ typedef struct GetSetNumProcessorsParams {
     double result;
 }GetSetNumProcessorsParams, * GetSetNumProcessorsParamsPtr;
 
-typedef struct SwapEvenParams {
+typedef struct SwapEvenParams {     // also used for SwapEvenReverseEven
     waveHndl w1;
     UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
     double result;
 }SwapEvenParams, * SwapEvenParamsPtr;
+
+typedef struct  SwapEvenFrameParams{    // also used for ReverseEven
+    double theFrame;
+    waveHndl w1;
+    UserFunctionThreadInfoPtr tp; // Pointer to Igor private data.
+    double result;
+}SwapEvenFrameParams, * SwapEvenFrameParamsPtr;
 
 typedef struct DownSampleParams {
     double dsType;
@@ -230,8 +237,9 @@ HOST_IMPORT int XOPMain(IORecHandle ioRecHandle);
 //LSM Utilities
 extern "C" int GetSetNumProcessors(GetSetNumProcessorsParamsPtr p);
 extern "C" int SwapEven(SwapEvenParamsPtr);
+extern "C" int SwapEvenFrame (SwapEvenFrameParamsPtr);
 extern "C" int SwapEvenReverseEven(SwapEvenParamsPtr);
-extern "C" int ReverseEven (SwapEvenParamsPtr);
+extern "C" int ReverseEvenFrame (SwapEvenFrameParamsPtr);
 extern "C" int DownSample(DownSampleParamsPtr p);
 extern "C" int Decumulate(DecumulateParamsPtr p);
 extern "C" int TransposeFrames(TransposeFramesParamsPtr p);

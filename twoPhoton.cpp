@@ -58,33 +58,41 @@ static XOPIORecResult RegisterFunction() {
 	case 11:
 		return ((XOPIORecResult)SwapEven);
 		break;
-	case 12:
-		return ((XOPIORecResult)DownSample);
-		break;
-	case 13:
-		return ((XOPIORecResult)Decumulate);
-		break;
-	case 14:
-		return ((XOPIORecResult)TransposeFrames);
-		break;
-    case 15:
-        return ((XOPIORecResult)FastIntCopy);
+    case 12:
+        return ((XOPIORecResult)SwapEvenFrame);
         break;
-	case 16:
-		return ((XOPIORecResult)ConvolveFrames);
-		break;
-	case 17:
-		return ((XOPIORecResult)SymConvolveFrames);
-		break;
-	case 18:
-		return ((XOPIORecResult)MedianFrames);
-		break;
-    case 19:
+    case 13:
         return ((XOPIORecResult)SwapEvenReverseEven);
         break;
-    case 20:
-        return ((XOPIORecResult)ReverseEven);
+    case 14:
+        return ((XOPIORecResult)ReverseEvenFrame);
         break;
+	case 15:
+		return ((XOPIORecResult)DownSample);
+		break;
+	case 16:
+		return ((XOPIORecResult)Decumulate);
+		break;
+	case 17:
+		return ((XOPIORecResult)TransposeFrames);
+		break;
+    case 18:
+        return ((XOPIORecResult)FastIntCopy);
+        break;
+	case 19:
+		return ((XOPIORecResult)ConvolveFrames);
+		break;
+	case 20:
+		return ((XOPIORecResult)SymConvolveFrames);
+		break;
+	case 21:
+		return ((XOPIORecResult)MedianFrames);
+		break;
+    case 22:
+        return ((XOPIORecResult)SwapEvenReverseEven);
+        break;
+   
+    
 	}
 	return 0;
 }
