@@ -38,6 +38,8 @@
 #define MEMFAIL                 24 + FIRST_XOP_ERR
 #define NUMTYPE                 25 + FIRST_XOP_ERR
 #define INPUT_RANGE             26 + FIRST_XOP_ERR
+#define INPUTNEEDS_2D_WAVE      27 + FIRST_XOP_ERR
+
 
 // mnemonic defines
 #define OVERWRITE 1
@@ -228,7 +230,8 @@ HOST_IMPORT int XOPMain(IORecHandle ioRecHandle);
 //LSM Utilities
 extern "C" int GetSetNumProcessors(GetSetNumProcessorsParamsPtr p);
 extern "C" int SwapEven(SwapEvenParamsPtr);
-extern "C" int SwapEvenReverseEven (SwapEvenParamsPtr);
+extern "C" int SwapEvenReverseEven(SwapEvenParamsPtr);
+extern "C" int ReverseEven (SwapEvenParamsPtr);
 extern "C" int DownSample(DownSampleParamsPtr p);
 extern "C" int Decumulate(DecumulateParamsPtr p);
 extern "C" int TransposeFrames(TransposeFramesParamsPtr p);

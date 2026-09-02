@@ -82,6 +82,9 @@ static XOPIORecResult RegisterFunction() {
     case 19:
         return ((XOPIORecResult)SwapEvenReverseEven);
         break;
+    case 20:
+        return ((XOPIORecResult)ReverseEven);
+        break;
 	}
 	return 0;
 }

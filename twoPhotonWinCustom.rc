@@ -33,9 +33,10 @@ BEGIN
 "One of the waves specified in the input list does not exist.\0"
 "A symmetric convolution kernel must be a 1D single precision floating point wave of odd length.\0",
 "This function only works with unsigned integer data.\0",
-"Temporary memory could not be allocated for processing\0",
+"Temporary memory could not be allocated for processing.\0",
 "Can not do this function on wave of this type\0",
 "Range of requested dimension to process is invalid\0",
+ "The input wave needs to have exactly 3 dimensions.\0",
 "\0"							// NOTE: NULL required to terminate the resource.
 END
 
@@ -211,11 +212,17 @@ BEGIN
 	NT_FP64,
 	0,
  
-     "SwapEvenReverseEven\0"
-    F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
-    NT_FP64,
-    WAVE_TYPE,
-    0,
+	"SwapEvenReverseEven\0"
+	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+	NT_FP64,
+	WAVE_TYPE,
+	0,
+
+	"ReverseEven\0"
+	F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,
+	NT_FP64,
+	WAVE_TYPE,
+	0,
 
 "\0"								// NOTE: NULL required to terminate the resource.
 END

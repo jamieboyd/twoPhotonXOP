@@ -64,9 +64,11 @@ resource 'STR#' (1100) {                    /* custom error messages */
         /*[24] MEMFAIL */
         "Temporary memory could not be allocated for processing",
         /* [25] NUMTYPE */
-        "Can not do this function on wave of this type",
+        "Can not do this function on wave of this type.",
         /* [26] INPUTRANGE */
-        "Range of requested dimensions to process is invalid",
+        "Range of requested dimensions to process is invalid.",
+        /* [27] INPUTNEEDS_2D_WAVE */
+        "The input wave needs to have exactly 3 dimensions.",
     }
 };
 
@@ -274,6 +276,13 @@ resource 'XOPF' (1100) {
         },
         
         "SwapEvenReverseEven",
+        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
+        NT_FP64,
+        {
+            WAVE_TYPE,        //InPutWave
+        },
+        
+        "ReverseEven",
         F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
         NT_FP64,
         {
