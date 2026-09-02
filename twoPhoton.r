@@ -44,7 +44,7 @@ resource 'STR#' (1100) {                    /* custom error messages */
         /*[14] BADDSTYPE */
         "The Down Sample or Projection Type was not recognized.",
         /*[15] WAVEERROR_NOS */
-        "A wave access error ocurred.",
+        "A wave access error occurred.",
         /*[16] OVERWRITEALERT*/
         "Destination wave already exists and can not be overwritten.",
         /*[17] NOTEXTWAVES */
@@ -64,11 +64,11 @@ resource 'STR#' (1100) {                    /* custom error messages */
         /*[24] MEMFAIL */
         "Temporary memory could not be allocated for processing",
         /* [25] NUMTYPE */
-        "Can not do this function on wave of this type.",
+        "Cannot do this function on wave of this type.",
         /* [26] INPUTRANGE */
         "Range of requested dimensions to process is invalid.",
         /* [27] INPUTNEEDS_2D_WAVE */
-        "The input wave needs to have exactly 3 dimensions.",
+        "The input wave needs to have exactly 2 dimensions.",
     }
 };
 
@@ -145,7 +145,7 @@ resource 'XOPF' (1100) {
         NT_FP64,                                    /* return value type */
         {                                           /* parameter types */
             WAVE_TYPE,                              // Input Wave
-             WAVE_TYPE,                             // output wave
+            WAVE_TYPE,                             // output wave
             NT_FP64,                                // how many waves have previously been added
         },
         
@@ -205,6 +205,29 @@ resource 'XOPF' (1100) {
         NT_FP64,
         {
             WAVE_TYPE,        //InPutWave
+        },
+        
+        "SwapEvenFrame",
+        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
+        NT_FP64,
+        {
+            WAVE_TYPE,        //InPutWave
+            NT_FP64,          // number of the frame to swap line for
+        },
+        
+        "SwapEvenReverseEven",
+        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
+        NT_FP64,
+        {
+            WAVE_TYPE,        //InPutWave
+        },
+        
+        "ReverseEvenFrame",
+        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
+        NT_FP64,
+        {
+            WAVE_TYPE,        //InPutWave
+            NT_FP64,          // number of the frame to swap line for
         },
         
         "DownSample",
@@ -274,22 +297,7 @@ resource 'XOPF' (1100) {
             NT_FP64,    // Width over which to apply median
             NT_FP64,  // flag to overwrite existing waves.
         },
-        
-        "SwapEvenReverseEven",
-        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
-        NT_FP64,
-        {
-            WAVE_TYPE,        //InPutWave
-        },
-        
-        "ReverseEven",
-        F_ANLYZWAVES | F_THREADSAFE | F_EXTERNAL,                /* function category */
-        NT_FP64,
-        {
-            WAVE_TYPE,        //InPutWave
-        },
-
-    }
+     }
 };
 
 
