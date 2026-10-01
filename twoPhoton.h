@@ -5,8 +5,8 @@
 #define TWOPHOTON_H_
 
 #include "ParseWavePath.h"              // Utility to parse strings into data folder paths and wave names
-#include "XOPResources.h"                // Contains definition of XOP_TOOLKIT_VERSION
-#include "XOPStandardHeaders.h"            // Include ANSI headers, Mac headers, IgorXOP.h, XOP.h and XOPSupport.h
+#include "XOPResources.h"               // Contains definition of XOP_TOOLKIT_VERSION
+#include "XOPStandardHeaders.h"         // Include ANSI headers, Mac headers, IgorXOP.h, XOP.h and XOPSupport.h
 
 #define NO_IGOR_ERR   // when defined, all functions return 0 to avoid modal dialogs
 //#undef NO_IGOR_ERR      // when not defined, functions return error codes that invoke modal dialogs
