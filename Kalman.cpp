@@ -925,10 +925,11 @@ typedef struct KalmanListThreadParams{
     Ptr* inPutDataStartsPtr;
     char* outPutDataStartPtr;
     UInt16 nWaves;
-    CountInt nPnts;
     float multiplier;
-    UInt8 ti; // number of this thread, starting from 0
-    UInt8 tN; // total number of threads
+    CountInt threadOffset;
+    CountInt threadPix;
+   // UInt8 ti; // number of this thread, starting from 0
+    //UInt8 tN; // total number of threads
 } KalmanListThreadParams, *KalmanListThreadParamsPtr;
 
 
@@ -942,43 +943,42 @@ DWORD WINAPI KalmanListThread(LPVOID threadarg) {
 #endif
     struct KalmanListThreadParams* p;
     p = (struct KalmanListThreadParams*) threadarg;
-    CountInt nPnts= p->nPnts;
-    float multiplier = p->multiplier;
-    UInt8 ti = p->ti;
-    UInt8 tN = p->tN;
-    CountInt pntsPerThread = nPnts/tN;
-    CountInt startPos = ti * pntsPerThread; // which point to start this thread on depends on thread number * points per thread. ti is 0 based
-    if (ti == (tN - 1)) pntsPerThread += (nPnts % tN); // last thread gets any extra points
+   // CountInt nPnts= p->nPnts;
+   // float multiplier = p->multiplier;
+    //UInt8 ti = p->ti;
+    //UInt8 tN = p->tN;
+    //CountInt pntsPerThread = nPnts/tN;
+    //CountInt startPos = ti * pntsPerThread; // which point to start this thread on depends on thread number * points per thread. ti is 0 based
+   // if (ti == (tN - 1)) pntsPerThread += (nPnts % tN); // last thread gets any extra points
     switch (p->inPutWaveType) {
     case NT_I8:
-        KalmanListT ((char**)p->inPutDataStartsPtr, (char*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+        KalmanListT ((char**)p->inPutDataStartsPtr, (char*)p->outPutDataStartPtr, p->nWaves, p->threadOffset, p->threadOffset + p->threadPix, p->multiplier);
         break;
     case (NT_I8 | NT_UNSIGNED):
-        KalmanListT ((unsigned char**)p->inPutDataStartsPtr, (unsigned char*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);                
+        KalmanListT ((unsigned char**)p->inPutDataStartsPtr, (unsigned char*)p->outPutDataStartPtr, p->nWaves, p->threadOffset, p->threadOffset + p->threadPix, p->multiplier);
         break;
     case NT_I16:
-        KalmanListT ((short**)p->inPutDataStartsPtr, (short*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
-        break;
+        KalmanListT ((short**)p->inPutDataStartsPtr, (short*)p->outPutDataStartPtr, p->nWaves, p->threadOffset, p->threadOffset + p->threadPix, p->multiplier);
     case (NT_I16 | NT_UNSIGNED):
-        KalmanListT ((unsigned short**)p->inPutDataStartsPtr, (unsigned short*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+        KalmanListT ((unsigned short**)p->inPutDataStartsPtr, (unsigned short*)p->outPutDataStartPtr, p->nWaves, p->threadOffset, p->threadOffset + p->threadPix, p->multiplier);
         break;
     case NT_I32:
-        KalmanListT ((SInt32**)p->inPutDataStartsPtr, (SInt32*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+        KalmanListT ((SInt32**)p->inPutDataStartsPtr, (SInt32*)p->outPutDataStartPtr, p->nWaves, p->threadOffset, p->threadOffset + p->threadPix, p->multiplier);
         break;
     case (NT_I32| NT_UNSIGNED):
-        KalmanListT ((UInt32**)p->inPutDataStartsPtr, (UInt32*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+        KalmanListT ((UInt32**)p->inPutDataStartsPtr, (UInt32*)p->outPutDataStartPtr, p->nWaves, p->threadOffset, p->threadOffset + p->threadPix, p->multiplier);
         break;
     case NT_I64:
-        KalmanListT((SInt64**)p->inPutDataStartsPtr, (SInt64*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+        KalmanListT((SInt64**)p->inPutDataStartsPtr, (SInt64*)p->outPutDataStartPtr, p->nWaves, p->threadOffset, p->threadOffset + p->threadPix, p->multiplier);
         break;
     case (NT_I64 | NT_UNSIGNED):
-        KalmanListT((UInt64**)p->inPutDataStartsPtr, (UInt64*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+        KalmanListT((UInt64**)p->inPutDataStartsPtr, (UInt64*)p->outPutDataStartPtr, p->nWaves, p->threadOffset, p->threadOffset + p->threadPix, p->multiplier);
         break;
     case NT_FP32:
-        KalmanListT ((float**)p->inPutDataStartsPtr, (float*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+        KalmanListT ((float**)p->inPutDataStartsPtr, (float*)p->outPutDataStartPtr, p->nWaves, p->threadOffset, p->threadOffset + p->threadPix, p->multiplier);
         break;
     case NT_FP64:
-        KalmanListT ((double**)p->inPutDataStartsPtr, (double*)p->outPutDataStartPtr, p->nWaves, startPos, startPos + pntsPerThread, multiplier);
+        KalmanListT ((double**)p->inPutDataStartsPtr, (double*)p->outPutDataStartPtr, p->nWaves, p->threadOffset, p->threadOffset + p->threadPix, p->multiplier);
         break;
     }
 #ifdef __GNUC__
@@ -991,7 +991,7 @@ DWORD WINAPI KalmanListThread(LPVOID threadarg) {
 
 /* *************************************************************** KalmanList ***************************************************************************************
  KalmanList XOP entry function
- Averages a semicolon-separated list of waves. Each wave must have same data type and same dimensions. This is not used by the
+ Averages a semicolon-separated list of 2D waves. Each wave must have same data type and same dimensions. This is not used by the
  twoPhoton acquisition code so we print some more information in the error cases with XOPNotice
  KalmanListParams
  inPutList          semicolon separated list of input waves, with paths
@@ -1018,7 +1018,8 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
     float multiplier = p->multiplier;
     UInt16 numWaves;                            //number of input waves in the input list
     CountInt waveOffset;                        //offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
-    CountInt nPnts;
+    CountInt threadPix;
+    CountInt layerSize;
     UInt8 iThread, nThreads;
     KalmanListThreadParamsPtr paramArrayPtr = nullptr;
     //**** declare pthreads or HANDLE pointer
@@ -1071,10 +1072,7 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
         }
         // Get wave dimensions and calculate number of points
         if (MDGetWaveDimensions(handleList[0], &inPutDimensions, inputDimSizes))throw result = WAVEERROR_NOS;
-        nPnts = inputDimSizes [0];
-        for (int id =1; id < inPutDimensions; id +=1){
-            nPnts *= inputDimSizes [id];
-        }
+        if (inPutDimensions != 2) throw result = INPUTNEEDS_2D_WAVE;
         // check to see if output wave is the same as the 1st input wave
         WaveName (handleList[0], inPutWaveName);
         GetWavesDataFolder (handleList[0], &inPutDFHandle);
@@ -1154,7 +1152,15 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
             outPutDataStartPtr =  (char*)(*outPutWaveH) + waveOffset;
         }
         // multiprocessor init
-        nThreads = gNumProcessors;
+        // threads
+        layerSize = inputDimSizes[COLUMNS] * inputDimSizes[ROWS];
+        if (layerSize < gNumProcessors) {
+            nThreads = layerSize;
+        }
+        else {
+            nThreads = gNumProcessors;
+        }
+        threadPix = layerSize / nThreads;     // number of pixels done by a thread, note integer truncation
         paramArrayPtr = (KalmanListThreadParamsPtr)WMNewPtr(nThreads * sizeof(KalmanListThreadParams));
         if (paramArrayPtr == nullptr) throw result = MEMFAIL;
        
@@ -1188,12 +1194,11 @@ extern "C" int KalmanList (KalmanListParamsPtr p) {
         paramArrayPtr[iThread].inPutDataStartsPtr = inPutDataStartsPtr;
         paramArrayPtr[iThread].outPutDataStartPtr = outPutDataStartPtr;
         paramArrayPtr[iThread].nWaves=numWaves;
-        paramArrayPtr[iThread].nPnts = nPnts;
         paramArrayPtr[iThread].multiplier = multiplier;
-        paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
-        paramArrayPtr[iThread].tN =nThreads; // total number of threads
-    }
-    
+        paramArrayPtr[iThread].threadOffset = iThread * threadPix;
+        paramArrayPtr[iThread].threadPix = threadPix;
+     }
+    paramArrayPtr[nThreads - 1].threadPix += layerSize % nThreads;
 #ifdef __GNUC__
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, KalmanListThread, (void *) &paramArrayPtr[iThread]);
