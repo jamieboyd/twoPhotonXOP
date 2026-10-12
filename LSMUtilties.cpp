@@ -1,27 +1,32 @@
 #include "twoPhoton.h"
 #include <math.h>
 
-/* ------------------------------LSM Utilities --------------------------------------------------
-utility functions specialized for Laser Scanning Microscope data acquisition
+/* LSM Utilities
+ Utility functions specialized for Laser Scanning Microscope data acquisition
  Last Modified 2026/08/11 by Jamie Boyd - changed long to SInt32 and unsigned long to SInt32 and added support for 64 bit Integer waves and added FastIntCopy
- -------------------------------------------------------------------------------------------------*/
+*/
  
 /* --------------------------- GetSetNumProcessors--------------------------------------------
-sanity check function for getting number of processors should return same as ThreadProcessorCount
-Last Modified 2025/06/24 by Jamie Boyd */
+ The global variable for the number of processors, gNumProcessors, is set when the twoPhoton XOP is initalized in XOPMain.
+ This function allows the user to re-set the global for the number of processors, and also returns the number of processors.
+ It should return the same number as the Igor function ThreadProcessorCount.
+Last Modified 2025/06/24 by Jamie Boyd
+ ------------------------------------------------------------------------------------------------*/
 extern "C" int GetSetNumProcessors(GetSetNumProcessorsParamsPtr p){
     gNumProcessors = num_processors();
     p->result = (double)gNumProcessors;
     return (0);
 }
 
-
 /* -------------------------------- SwapEven -------------------------------------------------------
- horizontally swaps every other line in an image or series of images.
+ SwapEven swaps every other line from left to right in a 2D or 3D image. SwapEvenFrame does the same but
+ for a specified frame in a 3D wave. These two XOP entry functions use the same thread function,
+ thread data structure, and function template.
  Used after doing back and forth scanning, where every other line is scanned from the opposite direction.
  ----------------------------------------------------------------------------------------------------- */
 
-/* Template for SwapEven functions
+/* ********************************** SwapEvenT ***************************************************
+ Function Template for SwapEven
 Last Modified 2013/07/15 by Jamie Boyd */
 template <typename T> void SwapEvenT (T *dataStartPtr, CountInt numLines, CountInt lineLen) {
     // make Pointer to end of the data
@@ -44,7 +49,8 @@ template <typename T> void SwapEvenT (T *dataStartPtr, CountInt numLines, CountI
     }
 }
 
-/* Structure to pass data to each SwapEvenThread
+/* *********************************** SwapEvenThreadParams ******************************************
+ Structure to pass data to each SwapEvenThread
 Last Modified 2026/08/31 by Jamie Boyd */
 typedef struct SwapEvenThreadParams{
     int inPutWaveType;
@@ -55,9 +61,15 @@ typedef struct SwapEvenThreadParams{
 }SwapEvenThreadParams, *SwapEvenThreadParamsPtr;
 
 
-/* Each thread to swap a range of rows starts with this function
+/* **************************************** SwapEvenThread *************************************************
+ Each thread to swap a range of rows starts with this function
  Last Modified 2026/08/31 by Jamie Boyd */
+#ifdef __GNUC__
 void* SwapEvenThread (void* threadarg){
+#endif
+#ifdef _WINDOWS_
+DWORD WINAPI SwapEvenThread(LPVOID threadarg) {
+#endif
     struct SwapEvenThreadParams* p;
     p = (struct SwapEvenThreadParams*) threadarg;
     // call the right template function for the wave types
@@ -93,10 +105,16 @@ void* SwapEvenThread (void* threadarg){
             SwapEvenT ((double*)p->dataStartPtr + p->startOffset, p->numLines, p->lineLen);
             break;
     }
+#ifdef __GNUC__
     return nullptr;
+#endif
+#ifdef _WINDOWS_
+    return 0;
+#endif
 }
 
-/* SwapEven XOP entry function
+/* ************************************************* SwapEven ************************************
+ SwapEven XOP entry function
  SwapEvenParams:
  wave handle to start of data of input wave, which is overwrittten
  result =  0 or error code
@@ -113,9 +131,15 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
     char* dataStartPtr;    // Pointer to start of data in input wave. Need to use char for these to use WM function to get data offset
     // Multi threading
     int iThread, nThreads;
-    CountInt linesPerThread, lastThreadLines;
+    CountInt linesPerThread;
     SwapEvenThreadParamsPtr paramArrayPtr = nullptr;
-    pthread_t* threadsPtr = nullptr;
+#ifdef __GNUC__
+    pthread_t* threadsPtr = nullptr;   // pointer to an array of pThread_t structures we will make
+#endif
+#ifdef  _WINDOWS_
+    HANDLE *threadsPtr = nullptr;      // pointer to an array of Windows handles, which will point to thread structures we make
+    DWORD *threadIDsPtr = nullptr;     // pointer to an array of DWORD (32-bit unsigned integer) that Windows uses for thread IDs
+#endif
     try {
         // Get handle to input wave. Make sure it exists.
         wavH = p->w1;
@@ -152,41 +176,67 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
                 if (linesPerThread % 2) linesPerThread --;
             }
         }
-        lastThreadLines = numLines % nThreads; // last thread gets any left over lines
         paramArrayPtr = (SwapEvenThreadParamsPtr)WMNewPtr(nThreads * sizeof(SwapEvenThreadParams));
         if (paramArrayPtr == nullptr) throw result = MEMFAIL;
-        // make an array of pthread_t
+#ifdef __GNUC__
+        // set threadsPtr to an array of pthread_t for MacOS
         threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
         if (threadsPtr == nullptr) throw result = MEMFAIL;
+#endif
+#ifdef _WINDOWS_
+        // set threadsPtr to an array of Handles for Windows
+        threadsPtr = (HANDLE*)WMNewPtr(nThreads * sizeof(HANDLE));
+        // also set threadIDsPtr to an array of DWORDs for thread IDs
+        threadIDsPtr = (DWORD*)WMNewPtr(nThreads * sizeof(DWORD));
+        if ((threadsPtr == nullptr) || (threadIDsPtr == nullptr)) throw result = MEMFAIL;
+#endif
     }catch (int result){
         if (paramArrayPtr != nullptr) WMDisposePtr ((Ptr)paramArrayPtr);
         if (threadsPtr != nullptr) WMDisposePtr ((Ptr)threadsPtr);
+#ifdef _WINDOWS_
+        if (threadIDsPtr != nullptr) WMDisposePtr((Ptr)threadIDsPtr);
+#endif
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
         return (0);
 #else
         return (result);
 #endif
-    }
-   
+    } // all inputs validated, all memory allocated
     // fill threadParams array
     for (iThread = 0; iThread < nThreads; iThread++){
         paramArrayPtr[iThread].inPutWaveType = waveType;
         paramArrayPtr[iThread].dataStartPtr = dataStartPtr;
         paramArrayPtr[iThread].startOffset = iThread * linesPerThread * lineLen;
         paramArrayPtr[iThread].numLines = linesPerThread;
-        if (iThread == nThreads -1) paramArrayPtr[iThread].numLines += lastThreadLines;
         paramArrayPtr[iThread].lineLen = lineLen;
     }
+    paramArrayPtr[nThreads - 1].numLines += numLines % nThreads;
+#ifdef __GNUC__
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
-        pthread_create (&threadsPtr[iThread], NULL, SwapEvenThread, (void *) &paramArrayPtr[iThread]);
+        pthread_create(&threadsPtr[iThread], NULL, SwapEvenThread, (void*)&paramArrayPtr[iThread]);
     }
-    // Wait till all the threads are finished
+    // wait for threads to finish
+    for (iThread = 0; iThread < nThreads; iThread++) {
+        pthread_join(threadsPtr[iThread], NULL);
+    }
+#endif
+#ifdef _WINDOWS_
+    // create the threads with Default security attributes, Default stack size, KalmanThread function, a pointer to a parameter structure, Default creation flags, and a pointer to a threadId
     for (iThread = 0; iThread < nThreads; iThread++){
-        pthread_join (threadsPtr[iThread], NULL);
+        threadsPtr[iThread] = CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE)SwapEvenThread, (LPVOID)&paramArrayPtr[iThread], 0, &threadIDsPtr[iThread]);
     }
-    // free memory for pThreads Array
+    // wait for the threads to finish
+    WaitForMultipleObjects(nThreads, threadsPtr, TRUE, INFINITE);
+    // Close thread handles
+    for (iThread = 0; iThread < nThreads; iThread++) {
+        CloseHandle(threadsPtr[iThread]);
+    }
+    // free threadIDs, only used for windows
+    WMDisposePtr((Ptr)threadIDsPtr);    // freee threadIDs
+#endif
+    // free memory for threads Array
     WMDisposePtr ((Ptr)threadsPtr);
     // Free paramaterArray memory
     WMDisposePtr ((Ptr)paramArrayPtr);
@@ -197,7 +247,8 @@ extern "C" int SwapEven (SwapEvenParamsPtr p){
 }
 
 
-/* SwapEvenFrame XOP entry function
+/* ************************************************************* SwapEvenFrame ************************************
+ SwapEvenFrame XOP entry function - Swaps even-numbered lines from left-to-right in a single frame of a 3D image
  SwapEvenFrameParamsPtr
  double theFrame - number of frame to swap
  wave handle to start of data of input wave, which is overwrittten
@@ -1839,7 +1890,7 @@ void* FastIntCopyUtoSclipThread (void* threadarg){
  Last Modified 2026/09 by Jamie Boyd */
 extern "C" int FastIntCopy(FastIntCopyParamsPtr p) {
     int result = 0;    // The error returned from various Wavemetrics functions
-    waveHndl srcWaveH = NULL, destWaveH = NULL;    // Handles to the input and output waves
+    waveHndl srcWaveH = nullptr, destWaveH = nullptr;    // Handles to the input and output waves
     IndexInt srcOffset, destOffset;     // offsets to points in src and dest wave to copy to/from
     IndexInt numCopyPoints;       // the number of points to be copied
     UInt8 ClipNotRotate; // set to request clipping for signed/unsigned mismatch between dest and src
@@ -1856,16 +1907,11 @@ extern "C" int FastIntCopy(FastIntCopyParamsPtr p) {
         // copy data from input struct.
         srcWaveH = p->srcWaveH;
         destWaveH = p->destWaveH;
-        if (destWaveH == nullptr){
-            sprintf(XOPbuffer, "The destination wave handle is bad.\r");
-            XOPNotice (XOPbuffer);
-        }
+        if ((srcWaveH == nullptr) || (destWaveH == nullptr)) throw result= NON_EXISTENT_WAVE;
         srcOffset = (CountInt)p->srcOffset;
         destOffset = (CountInt)p->destOffset;
         numCopyPoints = (IndexInt)p->numCopyPoints;
         ClipNotRotate = (UInt8)p->ClipNotRotate;
-        // Check handles to src and dest waves make sure they exist.
-        if ((srcWaveH == nullptr) || (destWaveH == nullptr)) throw result= NON_EXISTENT_WAVE;
         // make sure offsets and number of points to copy do not exceed wave size
         numSrcPoints = WavePoints(srcWaveH);
         numDestPoints = WavePoints(destWaveH);

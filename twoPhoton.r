@@ -83,15 +83,6 @@ resource 'XOPI' (1100) {
     XOP_TOOLKIT_VERSION,                    // XOP Toolkit version.
 };
 
-
-resource 'XOPI' (1100) {
-    XOP_VERSION,                            // XOP protocol version.
-    DEV_SYS_CODE,                            // Code for development system used to make XOP
-    XOP_FEATURE_FLAGS,                        // Tells Igor about XOP features
-    XOPI_RESERVED,                            // Reserved - must be zero.
-    XOP_TOOLKIT_VERSION,                    // XOP Toolkit version.
-};
-
 resource 'XOPF' (1100) {
     {
         "GetSetNumProcessors",                      /* function name */

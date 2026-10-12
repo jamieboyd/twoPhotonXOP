@@ -2,7 +2,8 @@
 
 /* ------------------------------Minimum/Maximum/Avg/Median Intensity Projections----------------------
  Code for making Minimum/Maximum/Avg/Median Intensity Projections along X,Y, and Z axes
- Last Modified 2026/08/11 by Jamie Boyd - changed long to SInt32 and unsigned long to SInt32 and added support for 64 bit Integer waves
+ 
+ Modified 2026/08/11 by Jamie Boyd - changed long to SInt32 and unsigned long to SInt32 and added support for 64 bit Integer waves
 
  ProjectAllFrames and ProjectSpecFrames make a projection image of a 3D wave, either into a 2D wave,
  or by collapsing the input 3D wave into 2D. The differences between ProjectAllFrames and ProjectSpecFrames:

@@ -1,12 +1,17 @@
 #include "twoPhoton.h"
 
-/* ---------------------------------------------Kalman.cpp ----------------------------------------------------------
- Code for Kalman averaging of frames in a 3d wave, 2d wave, or a list of waves
+/* Kalman.cpp
+ Code for Kalman averaging of frames in a 3d wave, a sequence of 2d waves, or a list of 2D waves
  Last Modified 2026/09/30 by Jamie Boyd - getting native windows threading working for KalmanAllFrames, KalmanSpecFrames, KalmanListFrames
  Modified 2026/09/29 by Jamie Boyd - got native windows threading working, cleaned up a bit
  Modified 2026/08/11 by Jamie Boyd - changed long to SInt32 and unsigned long to SInt32 and added support for 64 bitInteger waves
  Modified 2026/08/02 by Jamie Boyd - start at using native windows threading instead of pThreadsWin32 - not working yet, hence the "dirty" includes
- ---------------------------------------------------------------------------------------------------------------*/
+*/
+
+/* ----------------------------------------------- Kalman for 3D Waves ----------------------------------------------------------------
+  Kalman averaging for 3D waves. XOP entry functions KalmanAllFrames, KalmanSpecFrames, KalmanListFrames use the same thread function,
+ KalmanThread, thread data structure, KalmanThreadParams, and function template, KalmanT.
+ ----------------------------------------------------------------------------------------------------------------------------------- */
 
 /* ************************************************** KalmanT **************************************************************
  The following template is used to handle any one of the 8 types of wave data, for any of the three Kalman averaging functions
@@ -639,6 +644,12 @@ int KalmanWaveToFrame (KalmanWaveToFrameParamsPtr p) {
     return (0);
 }
 
+
+/* ------------------------------------ Sequential Kalman Averaging-------------------------------------------------------------
+ XOP entry function, thread function, thread parameter structure, and function template for sequential Kalman averaging of 2D
+ waves, one at a time.
+ ---------------------------------------------------------------------------------------------------------------------------- */
+
 /* ********************************************** KalmanNextT ****************************************************************
 Template for doing sequential Kalman averaging, src wave is the new wave,
  dest wave is the old wave already averaged iKal times
@@ -857,6 +868,11 @@ extern "C" int KalmanNext (KalmanNextParamsPtr p) {
     return (0);
 }
 
+/* ------------------------------------ Kalman Averaging a List of waves -------------------------------------------------------------
+ XOP entry function, thread function, thread parameter structure, and function template for Kalman averaging of a
+ list of 2D waves
+---------------------------------------------------------------------------------------------------------------------------- */
+
 
 /* ********************************************** KalmanListT **********************************************
  Template for handling all data types for KalmanList function
@@ -918,8 +934,9 @@ template <typename T> int KalmanListT (T** srcWaveStarts, T* destWaveStart, UInt
 }
 
 
-/* Structure to pass data to each KalmanListThread
-Last Modified 2013/07/16 by Jamie Boyd */
+/* ******************************************************************************************
+Structure to pass data to each KalmanListThread
+Last Modified 2026/10/05 by Jamie Boyd */
 typedef struct KalmanListThreadParams{
     int inPutWaveType;
     Ptr* inPutDataStartsPtr;
@@ -928,13 +945,12 @@ typedef struct KalmanListThreadParams{
     float multiplier;
     CountInt threadOffset;
     CountInt threadPix;
-   // UInt8 ti; // number of this thread, starting from 0
-    //UInt8 tN; // total number of threads
 } KalmanListThreadParams, *KalmanListThreadParamsPtr;
 
 
-/* Each thread to average a list of waves starts with this function
-Last Modified 2013/07/16 by Jamie Boyd */
+/* **************************************** KalmanListThread ***************************************
+Each thread to average a list of waves starts with this function
+Last Modified 2026/10/05 by Jamie Boyd */
 #ifdef __GNUC__
     void* KalmanListThread (void* threadarg){
 #endif
@@ -943,13 +959,6 @@ DWORD WINAPI KalmanListThread(LPVOID threadarg) {
 #endif
     struct KalmanListThreadParams* p;
     p = (struct KalmanListThreadParams*) threadarg;
-   // CountInt nPnts= p->nPnts;
-   // float multiplier = p->multiplier;
-    //UInt8 ti = p->ti;
-    //UInt8 tN = p->tN;
-    //CountInt pntsPerThread = nPnts/tN;
-    //CountInt startPos = ti * pntsPerThread; // which point to start this thread on depends on thread number * points per thread. ti is 0 based
-   // if (ti == (tN - 1)) pntsPerThread += (nPnts % tN); // last thread gets any extra points
     switch (p->inPutWaveType) {
     case NT_I8:
         KalmanListT ((char**)p->inPutDataStartsPtr, (char*)p->outPutDataStartPtr, p->nWaves, p->threadOffset, p->threadOffset + p->threadPix, p->multiplier);
