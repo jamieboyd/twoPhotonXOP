@@ -174,6 +174,10 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
     CountInt outPutOffset;          // offset in bytes from begnning of handle to the actual data in
     CountInt inputDimSizes[MAX_DIMENSIONS+1];
                                     // An array used to hold the sizes of each dimension of the input wave (rows, columns, layers)
+    CountInt outputDimSizes[MAX_DIMENSIONS+1];
+                                    // if output wave already exists, will hold sizes of output wave dimensions
+    int outPutDimensions;           // if output wave already exists, will get number of dimensions in output wave
+    int outPutWaveType;             // if output wave already exists
     UInt16 outPutPathLen;           //Length of the path to the target folder (output path:wave name)
     DataFolderHandle outPutDFHandle;// Handle to the datafolder where we will put the output wave
     DFPATH outPutPath;              // string to hold data folder path of output wave
@@ -184,7 +188,7 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
                                     // multiplier useful for integer waves containing less than their full range of data
     UInt8 overWriteOK = (UInt8)p->overWrite;
                                     // pass 0 to not overwrite output wave if it already exists, 1 to overwrite old waves
-    UInt8 isOverWritingInput;       // will be set if output wave is overwriting the input wave (we will flatten the wave to 2D)
+    UInt8 isOverWritingInput = 0;   // will be set if output wave is overwriting the input wave (we will flatten the wave to 2D)
     CountInt numLayers;             // number of layers in the input wave
     CountInt layerSize;             // number of points in a single image frame (rows x columns)
    // variables for threading
@@ -213,36 +217,42 @@ extern "C" int KalmanAllFrames(KalmanAllFramesParamsPtr p) {
         if (inPutDimensions != 3) throw result = INPUTNEEDS_3D_WAVE;
         // Save number of layers as we will be resizing dimensions array to re-use it for making 2D wave
         numLayers = inputDimSizes [LAYERS];
-        // If outPutPath is empty string, we are overwriting existing wave, which may or may  not be OK
-        outPutPathLen = WMGetHandleSize (p->outPutPath);
-        if (outPutPathLen == 0){
+        inputDimSizes [LAYERS] = 0;    // now inputDimSizes describes a 2D wave with same columns and layers as input wave
+        // If outPutPath is empty string, we are being asked to overwrite the input wave, which may or may not be OK
+        if (WMGetHandleSize (p->outPutPath) == 0){
             if (!(overWriteOK)) throw result = OVERWRITEALERT;
             outPutWaveH = inPutWaveH;
             isOverWritingInput = 1;
         }else{ // we have a passed in string we need to parse
-            isOverWritingInput = 0;
             // Parse passed in outPut path into dataFolder path and waveName
             ParseWavePath (p->outPutPath, outPutPath, outPutWaveName);
+            //No liberal wave names for output wave, maybe we don't really need to enforce non-liberal names?
+            CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
             // Get a handle to the output datafolder
             if (GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result = WAVEERROR_NOS;
-            // get a handle to the output wave, if it exists
+            // try to get a handle to the output wave specified in the string
             outPutWaveH = FetchWaveFromDataFolder(outPutDFHandle, outPutWaveName);
-            // if outPutwave does not exist, make it a 2D wave, same frame size and wavetype as input
-            if (outPutWaveH != nullptr){
+            if (outPutWaveH == nullptr){        // output wave specified in wave name does not exist, so make it
+                if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inputDimSizes, inPutWaveType, overWriteOK)) throw result = WAVEERROR_NOS;
+            }else{ // wave specified in the string already exists and outPutWaveH now points to it
+                if (!(overWriteOK)) throw result = OVERWRITEALERT;
                 if (outPutWaveH == inPutWaveH){
                     isOverWritingInput = 1;
+                    outPutWaveH = inPutWaveH;
+                }else{  // outPut wave is an existing wave, and is not the input wave, redimension and change type if needed
+                    // get wave data type of output wave and check that we don't have a text wave
+                    outPutWaveType = WaveType(outPutWaveH);
+                    if (outPutWaveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES; // can't redimension a text wave to a numeric wave
+                    //Get number of dimensions and dimension sizes in output wave
+                    if (MDGetWaveDimensions(outPutWaveH, &outPutDimensions, outputDimSizes))throw result = WAVEERROR_NOS;
+                    // redimension output wave and change wave type if necessary. it needs to be 2D, same X and Y size as input, and same data type
+                    if ((outPutWaveType |= inPutWaveType) || (outPutDimensions |= 2) || (outputDimSizes [0] |= inputDimSizes [0]) || (outputDimSizes [1] |= inputDimSizes [1])){
+                        if (MDChangeWave(outPutWaveH, inPutWaveType, inputDimSizes)) throw result = WAVEERROR_NOS;
+                    }
                 }
-                if (!(overWriteOK)) throw result = OVERWRITEALERT; //check if overwriting existing wave is OK
             }
-            // if not overwritingInput, make the output wave, overwriting it if it exists
-            if (!(isOverWritingInput)){
-                inputDimSizes [LAYERS] = 0;     // now inputDimSizes descibes a 2D wave with same columns and layers as input wave
-                //No liberal wave names for output wave, maybe we don't really need to enforce non-liberal names?
-                CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
-                if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inputDimSizes, inPutWaveType, overWriteOK)) throw result = WAVEERROR_NOS;
-            }
-        } // we now have handles to input wave and output wave
-        //Get data offsets for the 2 waves (1 wave, if overwriting)
+        } // we now have handles to the input wave and the output wave
+        //Get data offsets for the inPut and outPut waves (which will be the same wave, if overwriting)
         if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset) != 0) throw result = WAVEERROR_NOS;
         inPutDataStartPtr = (char*)(*inPutWaveH) + inPutOffset;
         if (isOverWritingInput){

@@ -1902,7 +1902,6 @@ extern "C" int FastIntCopy(FastIntCopyParamsPtr p) {
     pthread_t* threadsPtr = nullptr;       // array of pthreads
     FastIntCopyThreadParamsPtr paramArrayPtr = nullptr; // for passing data to threads
     UInt8 method;       // code for which fast copy thread to use
-    char XOPbuffer [256]; // string used for XOPAlert for debugging
     try {
         // copy data from input struct.
         srcWaveH = p->srcWaveH;
