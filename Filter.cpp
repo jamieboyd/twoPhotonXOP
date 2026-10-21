@@ -1118,7 +1118,8 @@ extern "C" int SymConvolveFrames(ConvolveFramesParamsPtr p) {
  Does multiple frames in a single 3D wave
  -------------------------------------------------------------------------------------------------------------*/
 
-/* template for a stand-alone median function for any data type
+/* ********************************************** medianT **********************************************
+ template for a stand-alone median function for any data type
  n = number of data points, dataStrtPtr is pointer to start of data
  Last Modified 2013/07/16 by Jamie Boyd */
 template <typename T> T medianT (UInt32 n, T* dataStrtPtr) {
@@ -1162,7 +1163,8 @@ template <typename T> T medianT (UInt32 n, T* dataStrtPtr) {
 }
 
 
- /* template for applying a median filter and putting the results in an output wave.
+ /* ********************************************** MedianFramesT **********************************************
+  template for applying a median filter and putting the results in an output wave.
   Input wave can be 2 or 3D, but each plane is done as a separate 2D image.
  Last Modified 2025/06/24 by Jamie Boyd */
 template <typename TI> void MedianFramesT (TI* srcWave, TI* destWave, TI* bufferStartPtr, CountInt xSize, CountInt ySize, CountInt zSize, UInt16 kWidth){
@@ -1304,7 +1306,8 @@ template <typename TI> void MedianFramesT (TI* srcWave, TI* destWave, TI* buffer
     if (kernelCopyStart != nullptr) WMDisposePtr ((Ptr)kernelCopyStart);
 }
 
-/* Structure to pass data to each MedianFramesThread
+/* ***************************** MedianFramesThreadParams *****************************
+ Structure to pass data to each MedianFramesThread
  Last Modified 2013/07/16 by Jamie Boyd */
 typedef struct MedianFramesThreadParams{
     int inPutWaveType;
@@ -1314,62 +1317,58 @@ typedef struct MedianFramesThreadParams{
     CountInt xSize;
     CountInt ySize;
     CountInt zSize;
-    UInt8 ti; // number of this thread, starting from 0
-    UInt8 tN; // total number of threads
+    CountInt startFrame;        // frame to start on for this threrad
+    CountInt threadFrames;      // number of frames to do for this thread
     UInt16 kWidth;
 }MedianFramesThreadParams, *MedianFramesThreadParamsPtr;
 
 
-/* Each thread to median filter a range of frames starts with this function
+/* ***************************** MedianFramesThread *****************************
+ Each thread to median filter a range of frames starts with this function
  Last Modified 2013/07/16 by Jamie Boyd */
 void* MedianFramesThread (void* threadarg){
     struct MedianFramesThreadParams* p;
     p = (struct MedianFramesThreadParams*) threadarg;
-    CountInt tFrames = p->zSize/p->tN; //frames per thread = number of frames / number of threads, truncated to an integer
-    CountInt startPos = p->ti * tFrames; // which frame to start this thread on depends on thread number * frames per thread. ti is 0 based
     CountInt frameSize = p->xSize * p->ySize;
-    if (p->ti == p->tN - 1) tFrames +=  (p->zSize % p->tN); // the last thread gets any left-over frames
-    startPos *= frameSize; //change start position from frames to data points by multiplying by frame size
+    CountInt startPos  = p->startFrame * frameSize; //change start position from frames to data points by multiplying by frame size
     // call the right template function for the wave types
-    CountInt bufferOffset = 0;
-    if (p->inPutDataStartPtr == p->outPutDataStartPtr )
-        bufferOffset= frameSize * p->ti;
     switch (p->inPutWaveType) {
         case NT_I8:
-            MedianFramesT ((char*)p->inPutDataStartPtr + startPos, (char*)p->outPutDataStartPtr + startPos, (char*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((char*)p->inPutDataStartPtr + startPos, (char*)p->outPutDataStartPtr + startPos, (char*)p->bufferPtr, p->xSize, p->ySize, p->threadFrames, p->kWidth);
             break;
         case (NT_I8 | NT_UNSIGNED):
-            MedianFramesT ((unsigned char*)p->inPutDataStartPtr + startPos,(unsigned char*)p->outPutDataStartPtr + startPos, (unsigned char*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((unsigned char*)p->inPutDataStartPtr + startPos,(unsigned char*)p->outPutDataStartPtr + startPos, (unsigned char*)p->bufferPtr, p->xSize, p->ySize, p->threadFrames, p->kWidth);
             break;
         case NT_I16:
-            MedianFramesT ((short*)p->inPutDataStartPtr + startPos,(short*)p->outPutDataStartPtr + startPos, (short*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((short*)p->inPutDataStartPtr + startPos,(short*)p->outPutDataStartPtr + startPos, (short*)p->bufferPtr, p->xSize, p->ySize, p->threadFrames, p->kWidth);
             break;
         case (NT_I16 | NT_UNSIGNED):
-            MedianFramesT ((unsigned short*)p->inPutDataStartPtr + startPos,(unsigned short*)p->outPutDataStartPtr + startPos, (unsigned short*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((unsigned short*)p->inPutDataStartPtr + startPos,(unsigned short*)p->outPutDataStartPtr + startPos, (unsigned short*)p->bufferPtr, p->xSize, p->ySize, p->threadFrames, p->kWidth);
             break;
         case NT_I32:
-            MedianFramesT ((SInt32*)p->inPutDataStartPtr + startPos,(SInt32*)p->outPutDataStartPtr + startPos, (SInt32*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((SInt32*)p->inPutDataStartPtr + startPos,(SInt32*)p->outPutDataStartPtr + startPos, (SInt32*)p->bufferPtr, p->xSize, p->ySize, p->threadFrames, p->kWidth);
             break;
         case (NT_I32| NT_UNSIGNED):
-            MedianFramesT ((UInt32*)p->inPutDataStartPtr + startPos,(UInt32*)p->outPutDataStartPtr + startPos, (UInt32*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((UInt32*)p->inPutDataStartPtr + startPos,(UInt32*)p->outPutDataStartPtr + startPos, (UInt32*)p->bufferPtr, p->xSize, p->ySize, p->threadFrames, p->kWidth);
             break;
         case NT_I64:
-            MedianFramesT((SInt64*)p->inPutDataStartPtr + startPos, (SInt64*)p->outPutDataStartPtr + startPos, (SInt64*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT((SInt64*)p->inPutDataStartPtr + startPos, (SInt64*)p->outPutDataStartPtr + startPos, (SInt64*)p->bufferPtr, p->xSize, p->ySize, p->threadFrames, p->kWidth);
             break;
         case (NT_I64 | NT_UNSIGNED):
-            MedianFramesT((UInt64*)p->inPutDataStartPtr + startPos, (UInt64*)p->outPutDataStartPtr + startPos, (UInt64*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT((UInt64*)p->inPutDataStartPtr + startPos, (UInt64*)p->outPutDataStartPtr + startPos, (UInt64*)p->bufferPtr, p->xSize, p->ySize, p->threadFrames, p->kWidth);
             break;
         case NT_FP32:
-            MedianFramesT ((float*)p->inPutDataStartPtr + startPos,(float*)p->outPutDataStartPtr + startPos, (float*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((float*)p->inPutDataStartPtr + startPos,(float*)p->outPutDataStartPtr + startPos, (float*)p->bufferPtr, p->xSize, p->ySize, p->threadFrames, p->kWidth);
             break;
         case NT_FP64:
-            MedianFramesT ((double*)p->inPutDataStartPtr + startPos,(double*)p->outPutDataStartPtr + startPos, (double*)p->bufferPtr + bufferOffset, p->xSize, p->ySize, tFrames, p->kWidth);
+            MedianFramesT ((double*)p->inPutDataStartPtr + startPos,(double*)p->outPutDataStartPtr + startPos, (double*)p->bufferPtr, p->xSize, p->ySize, p->threadFrames, p->kWidth);
             break;
     }
     return nullptr;
 }
 
-/* MedianFrames XOP entry function
+/* ***************************** MedianFrames *****************************
+ MedianFrames XOP entry function
  Applies a median filter to a 2D or 3D wave, treating each plane in a 3D wave as a separate 2D image
  typedef struct MedianFramesParams{
  double overWrite; // 1 if it is o.k. to overwrite existing waves, 0 to exit with error
@@ -1380,24 +1379,37 @@ void* MedianFramesThread (void* threadarg){
  } MedianFramesParams, *MedianFramesParamsPtr;
  Last modified 2013/07/16 by Jamie Boyd */
 extern "C" int MedianFrames (MedianFramesParamsPtr p){
-    int result = 0;	// The error returned from various Wavemetrics functions
-    waveHndl inPutWaveH, outPutWaveH;		// handles to the input and output waves
-	int inPutWaveType; //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
-    int inPutDimensions;	// number of dimensions in input wave
+    int result = 0;                             // The error returned from various Wavemetrics functions
+    waveHndl inPutWaveH, outPutWaveH;		    // handles to the input and output waves
+	int inPutWaveType;                          //  Wavetypes numeric codes for things like 32 bit floating point, 16 bit int, etc
+    int inPutDimensions;	                    // number of dimensions in input wave
     CountInt inPutDimSizes[MAX_DIMENSIONS+1];	// an array used to hold the width, height, layers, and chunk sizes
+    int outPutWaveType;
+    CountInt outPutDimSizes[MAX_DIMENSIONS+1];
+    int outPutDimensions;
     CountInt zSize, frameSize;
-    BCInt inPutOffset, outPutOffset;	//offset in bytes from begnning of handle to a wave to the actual data - size of headers, units, etc.
-    DataFolderHandle inPutDFHandle, outPutDFHandle;	// Handle to the datafolder where we will put the output wave
-    DFPATH inPutPath, outPutPath;	// string to hold data folder path of input wave
-    WVNAME inPutWaveName, outPutWaveName;	// C strings to hold names of input and output waves
-    UInt8 overWrite = (UInt8)(p->overWrite);	// 0 to not overwrite output wave if it already exists, 1 to overwrite old waves
-    UInt16 kWidth = (UInt16)(p-> kWidth); // width of the area over which the median will be calculated
-    UInt8 isOverWriting; // non-zero if output is overwriting input wave
-    char *inPutDataStartPtr, *outPutDataStartPtr, *bufferPtr = nullptr;
+    BCInt inPutOffset, outPutOffset;	        //offset in bytes from begnning of handle to a wave to the actual data
+    DataFolderHandle outPutDFHandle;	// Handle to the datafolder where we will put the output wave
+    DFPATH outPutPath;	// string to hold data folder path of input wave
+    WVNAME outPutWaveName;	        // C strings to hold names of input and output waves
+    UInt8 overWriteOK = (UInt8)(p->overWrite);	    // 0 to not overwrite output wave if it already exists, 1 to overwrite old waves
+    UInt16 kWidth = (UInt16)(p-> kWidth);           // width of the area over which the median will be calculated
+    UInt8 isOverWritingInput;                       // non-zero if output is overwriting input wave
+    char *inPutDataStartPtr = nullptr;
+    char *outPutDataStartPtr = nullptr;
+    char **bufferPtr = nullptr;
     // for threads
     UInt8 iThread, nThreads;
+    CountInt threadFrames;
     MedianFramesThreadParamsPtr paramArrayPtr = nullptr;
-    pthread_t* threadsPtr = nullptr;
+#ifdef __GNUC__
+    pthread_t* threadsPtr = nullptr;   // pointer to an array of pThread_t structures we will make
+#endif
+#ifdef  _WINDOWS_
+    HANDLE *threadsPtr = nullptr;      // pointer to an array of Windows handles, which will point to thread structures we make
+    DWORD *threadIDsPtr = nullptr;     // pointer to an array of DWORD (32-bit unsigned integer) that Windows uses for thread IDs
+#endif
+    
     try{
         // Check that kWidth is odd
         if ((kWidth % 2) == 0) throw result = BADKERNEL;
@@ -1411,40 +1423,46 @@ extern "C" int MedianFrames (MedianFramesParamsPtr p){
         if (MDGetWaveDimensions(inPutWaveH, &inPutDimensions, inPutDimSizes)) throw result = WAVEERROR_NOS;
         // Check that inputwave is 2D or 3D
         if ((inPutDimensions == 1) || (inPutDimensions == 4)) throw result = INPUTNEEDS_2D3D_WAVE;
+        frameSize = inPutDimSizes [ROWS] * inPutDimSizes [COLUMNS];
         // if z size is 0, make it 1 to calculate size
         if (inPutDimSizes [LAYERS] == 0)
             zSize = 1;
         else
             zSize=inPutDimSizes [LAYERS];
-        frameSize = inPutDimSizes [ROWS] * inPutDimSizes [COLUMNS];
         // If outPutPath is empty string, we are overwriting existing wave
         if (WMGetHandleSize (p->outPutPath) == 0){
-            if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
+            if (!(overWriteOK)) throw result = OVERWRITEALERT;
             outPutWaveH = inPutWaveH;
-            isOverWriting = 1;
+            isOverWritingInput = 1;
         }else{ // Parse outPut path
             ParseWavePath (p->outPutPath, outPutPath, outPutWaveName);
-            //Check to see if output path is valid
+            //No liberal wave names for output wave, maybe we don't really need to enforce non-liberal names?
+            CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
+            // Get a handle to the output datafolder
             if (GetNamedDataFolder (NULL, outPutPath, &outPutDFHandle))throw result = WAVEERROR_NOS;
-            // Test name and data folder for output wave against the input wave to prevent accidental overwriting, if src and dest are the same
-            WaveName (inPutWaveH, inPutWaveName);
-            if (GetWavesDataFolder (inPutWaveH, &inPutDFHandle)) return WAVEERROR_NOS;
-            if (GetDataFolderNameOrPath (inPutDFHandle, 1, inPutPath)) return WAVEERROR_NOS;
-            if ((!(CmpStr (inPutPath,outPutPath))) && (!(CmpStr (inPutWaveName,outPutWaveName)))){	// Then we would overwrite input wave
-                if (overWrite == NO_OVERWITE) throw result = OVERWRITEALERT;
-                isOverWriting = 1;
-                outPutWaveH = inPutWaveH;
-            }else{
-                isOverWriting = 0;
-                // make the output wave
-                //No liberal wave names for output wave
-                CleanupName (0, outPutWaveName, MAX_OBJ_NAME);
-                if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimSizes, inPutWaveType, overWrite)) throw result = WAVEERROR_NOS;
+            // try to get a handle to the output wave specified in the string
+            outPutWaveH = FetchWaveFromDataFolder(outPutDFHandle, outPutWaveName);
+            if (outPutWaveH == nullptr){        // output wave specified in wave name does not exist, so make it
+                if (MDMakeWave (&outPutWaveH, outPutWaveName, outPutDFHandle, inPutDimSizes, inPutWaveType, overWriteOK)) throw result = WAVEERROR_NOS;
+            }else{  // wave specified in the input string already exists and outPutWaveH now points to it
+                if (!(overWriteOK)) throw result = OVERWRITEALERT;  // because output wave already exists
+                if (outPutWaveH == inPutWaveH){ // overwriting input wave
+                    isOverWritingInput = 1;
+                }else{ // outPut wave is an existing wave, and is not the input wave, redimension and change type if needed
+                    outPutWaveType = WaveType(outPutWaveH);
+                    if (outPutWaveType==TEXT_WAVE_TYPE) throw result = NOTEXTWAVES;
+                    //Get number of dimensions and dimension sizes in output wave
+                    if (MDGetWaveDimensions(outPutWaveH, &outPutDimensions, outPutDimSizes))throw result = WAVEERROR_NOS;
+                    if ((outPutWaveType |= inPutWaveType) || (outPutDimSizes [0] |= inPutDimSizes [0]) || (outPutDimSizes [1] |= inPutDimSizes [1]) || (outPutDimSizes [2] |= inPutDimSizes [2])){
+                        if (MDChangeWave(outPutWaveH, inPutWaveType, inPutDimSizes)) throw result = WAVEERROR_NOS;
+                    }
+                }
             }
         }
+        
 		//Get data offsets for the 2 waves (1 wave, if overwriting)
         if (MDAccessNumericWaveData(inPutWaveH, kMDWaveAccessMode0, &inPutOffset)) return WAVEERROR_NOS;
-        if (isOverWriting){
+        if (isOverWritingInput){
             outPutOffset = inPutOffset;
         }else{
             if (MDAccessNumericWaveData(outPutWaveH, kMDWaveAccessMode0, &outPutOffset)) throw result = WAVEERROR_NOS;
@@ -1453,43 +1471,73 @@ extern "C" int MedianFrames (MedianFramesParamsPtr p){
         outPutDataStartPtr =  (char*)(*outPutWaveH) + outPutOffset; // true even if overwriting
         // multiprocessor init
         nThreads = gNumProcessors;
-        if (zSize < nThreads) nThreads = (UInt8) zSize;
+        if (zSize < nThreads) nThreads = zSize;
+        threadFrames = zSize/nThreads;
+       
+        // make a buffer of frames for threads if overwriting src
+        if (isOverWritingInput){
+            // make frame-sized buffers for threads
+            bufferPtr = (char**)WMNewPtr(sizeof(char*) * nThreads);
+            if (bufferPtr == nullptr) throw result = MEMFAIL;
+            for (iThread = 0 ; iThread < nThreads; iThread +=1){
+                switch (inPutWaveType) {
+                    case NT_I64 | NT_UNSIGNED:
+                    case NT_I64:
+                    case NT_FP64:
+                        bufferPtr [iThread] = (char*)WMNewPtr (inPutDimSizes[ROWS] * inPutDimSizes[COLUMNS]  * 8);
+                        if (bufferPtr [iThread] == nullptr) throw result = MEMFAIL;
+                        break;
+                    case NT_I32 | NT_UNSIGNED:
+                    case NT_I32:
+                    case NT_FP32:
+                        bufferPtr[iThread] = (char*)WMNewPtr (inPutDimSizes[ROWS] * inPutDimSizes[COLUMNS] * 4);
+                        if (bufferPtr [iThread] == nullptr) throw result = MEMFAIL;
+                        break;
+                    case NT_I16 | NT_UNSIGNED:
+                    case NT_I16:
+                        bufferPtr [iThread] = (char*)WMNewPtr (inPutDimSizes[ROWS] * inPutDimSizes[COLUMNS]   * 2);
+                        if (bufferPtr [iThread] == nullptr) throw result = MEMFAIL;
+                        break;
+                    case NT_I8 | NT_UNSIGNED:
+                    case NT_I8:
+                        bufferPtr [iThread] = (char*)WMNewPtr (inPutDimSizes[ROWS] * inPutDimSizes[COLUMNS]  * 1);
+                        if (bufferPtr [iThread] == nullptr) throw result = MEMFAIL;
+                        break;
+                    default:
+                        throw result = NUMTYPE;
+                        break;
+                }
+            }
+        }
         // make array of parameter structures */
         paramArrayPtr = (MedianFramesThreadParamsPtr)WMNewPtr(nThreads * sizeof(MedianFramesThreadParams));
         if (paramArrayPtr == nullptr) throw result = NOMEM;
-        // make an array of pthread_t
+#ifdef __GNUC__
+        // set threadsPtr to an array of pthread_t for MacOS
         threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
-        if (threadsPtr == nullptr) throw result = NOMEM;
-        // make a buffer of frames for threads if overwriting src
-        if (isOverWriting){
-            switch (inPutWaveType) {
-                case NT_I64 | NT_UNSIGNED:
-                case NT_I64:
-                case NT_FP64:
-                    bufferPtr = (char*)WMNewPtr (frameSize * nThreads * 8);
-                    break;
-                case NT_I32 | NT_UNSIGNED:
-                case NT_I32:
-                case NT_FP32:
-                    bufferPtr = (char*)WMNewPtr (frameSize * nThreads * 4);
-                    break;
-                case NT_I16 | NT_UNSIGNED:
-                case NT_I16:
-                    bufferPtr = (char*)WMNewPtr (frameSize * nThreads * 2);
-                    break;
-                case NT_I8 | NT_UNSIGNED:
-                case NT_I8:
-                    bufferPtr = (char*)WMNewPtr (frameSize * nThreads * 1);
-                    break;
-                default:
-                    throw result = NUMTYPE;
-                    break;
-            }
-            if (bufferPtr == nullptr) throw result = NOMEM;
-        }
+        if (threadsPtr == nullptr) throw result = MEMFAIL;
+#endif
+#ifdef _WINDOWS_
+        // set threadsPtr to an array of Handles for Windows
+        threadsPtr = (HANDLE*)WMNewPtr(nThreads * sizeof(HANDLE));
+        // also set threadIDsPtr to an array of DWORDs for thread IDs
+        threadIDsPtr = (DWORD*)WMNewPtr(nThreads * sizeof(DWORD));
+        if ((threadsPtr == nullptr) || (threadIDsPtr == nullptr)) throw result = MEMFAIL;
+#endif
     }catch (int result){
-        if (bufferPtr != nullptr) WMDisposePtr ((Ptr)bufferPtr);
+        if (bufferPtr != nullptr){
+            for (iThread = 0 ; iThread < nThreads; iThread +=1){
+                if (bufferPtr [iThread] == nullptr)
+                    break;
+                else
+                    WMDisposePtr ((Ptr)bufferPtr [iThread]);
+            }
+            WMDisposePtr ((Ptr)bufferPtr);
+        }
         if (threadsPtr != nullptr) WMDisposePtr ((Ptr)threadsPtr);
+#ifdef _WINDOWS_
+        if (threadIDsPtr != nullptr) WMDisposePtr((Ptr)threadIDsPtr);
+#endif
         if (paramArrayPtr != nullptr) WMDisposePtr ((Ptr)paramArrayPtr);
         WMDisposeHandle (p->outPutPath);    // free input string for output path
         p -> result = (double)(result - FIRST_XOP_ERR);
@@ -1504,23 +1552,45 @@ extern "C" int MedianFrames (MedianFramesParamsPtr p){
         paramArrayPtr[iThread].inPutWaveType = inPutWaveType;
         paramArrayPtr[iThread].inPutDataStartPtr = inPutDataStartPtr;
         paramArrayPtr[iThread].outPutDataStartPtr = outPutDataStartPtr;
-        paramArrayPtr[iThread].bufferPtr = bufferPtr;
+        paramArrayPtr[iThread].bufferPtr = bufferPtr[iThread];
         paramArrayPtr[iThread].xSize = inPutDimSizes [0];
         paramArrayPtr[iThread].ySize = inPutDimSizes [1];
-        paramArrayPtr[iThread].zSize = inPutDimSizes [2];
-        paramArrayPtr[iThread].ti=iThread; // number of this thread, starting from 0
-        paramArrayPtr[iThread].tN =nThreads; // total number of threads
+        paramArrayPtr[iThread].zSize = zSize;
+        paramArrayPtr[iThread].startFrame = iThread * threadFrames;
+        paramArrayPtr[iThread].threadFrames = threadFrames;
         paramArrayPtr[iThread].kWidth = (int)kWidth;
     }
+    paramArrayPtr[nThreads -1].threadFrames += zSize % threadFrames;    // last thread gets any left-over frames
+#ifdef __GNUC__
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
-        pthread_create (&threadsPtr[iThread], NULL, MedianFramesThread, (void *) &paramArrayPtr[iThread]);
+        pthread_create(&threadsPtr[iThread], NULL, MedianFramesThread, (void*)&paramArrayPtr[iThread]);
     }
-    // Wait till all the threads are finished
+    // wait for threads to finish
+    for (iThread = 0; iThread < nThreads; iThread++) {
+        pthread_join(threadsPtr[iThread], NULL);
+    }
+#endif
+#ifdef _WINDOWS_
+    // create the threads with Default security attributes, Default stack size, MedianFramesThread function, a pointer to a parameter structure, Default creation flags, and a pointer to a threadId
     for (iThread = 0; iThread < nThreads; iThread++){
-        pthread_join (threadsPtr[iThread], NULL);
+        threadsPtr[iThread] = CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE)MedianFramesThread, (LPVOID)&paramArrayPtr[iThread], 0, &threadIDsPtr[iThread]);
     }
-    WMDisposePtr ((Ptr)bufferPtr);      // free memory for buffer
+    // wait for the threads to finish
+    WaitForMultipleObjects(nThreads, threadsPtr, TRUE, INFINITE);
+    // Close thread handles
+    for (iThread = 0; iThread < nThreads; iThread++) {
+        CloseHandle(threadsPtr[iThread]);
+    }
+    // free threadIDs, only used for windows
+    WMDisposePtr((Ptr)threadIDsPtr);    // freee threadIDs
+#endif
+    if (isOverWritingInput){
+           for (iThread = 0 ; iThread < nThreads; iThread +=1){
+               WMDisposePtr ((Ptr)bufferPtr [iThread]);
+           }
+           WMDisposePtr ((Ptr)bufferPtr);
+       }
     WMDisposePtr ((Ptr)threadsPtr);     // free memory for pThreads Array
     WMDisposePtr ((Ptr)paramArrayPtr);  // free memory for paramaters Array
     WMDisposeHandle (p->outPutPath);    // free input string for output path
