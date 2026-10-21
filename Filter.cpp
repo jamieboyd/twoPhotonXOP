@@ -254,7 +254,12 @@ typedef struct ConvolveFramesThreadParams{
 /* ************************************ ConvolveFramesThread ******************************************************************
  Each thread to colvolve a range of frames starts with this function
  Last Modified 2014/01/20 by Jamie Boyd */
+#ifdef __GNUC__
 void *ConvolveFramesThread (void *threadarg){
+#endif
+#ifdef _WINDOWS_
+    DWORD WINAPI ConvolveFramesThread(LPVOID threadarg) {
+#endif
     ConvolveFramesThreadParams *p = (ConvolveFramesThreadParams*) threadarg;
     CountInt frameSize =p->xSize * p->ySize;
     CountInt startPos = p->startFrame * frameSize; //change start position from frames to data points by multiplying by frame size
@@ -325,7 +330,12 @@ void *ConvolveFramesThread (void *threadarg){
                 break;
 		}
 	}
-	return nullptr;
+#ifdef __GNUC__
+    return nullptr;
+#endif
+#ifdef _WINDOWS_
+    return 0;
+#endif
 }
 
 /* *********************************************** ConvolveFrames *******************************************************
@@ -752,7 +762,12 @@ template <typename TI, typename TO> void SymConvolveT (TI* srcWave, TO* destWave
 /* ******************************************* SymConvolveFramesThread ************************************************************
  Each thread to symetrically convolve a range of frames starts with this function
  Last Modified 2025/06/23 by Jamie Boyd */
-void* SymConvolveFramesThread (void* threadarg){
+#ifdef __GNUC__
+void* SymConvolveFramesThread(void* threadarg) {
+#endif
+#ifdef _WINDOWS_
+    DWORD WINAPI SymConvolveFramesThread(LPVOID threadarg) {
+#endif
     struct ConvolveFramesThreadParams* p;
     p = (struct ConvolveFramesThreadParams*) threadarg;
     CountInt frameSize = p->xSize * p->ySize;
@@ -830,7 +845,12 @@ void* SymConvolveFramesThread (void* threadarg){
                 break;
         }
     }
+#ifdef __GNUC__
     return nullptr;
+#endif
+#ifdef _WINDOWS_
+    return 0;
+#endif
 }
 
 /* SymConvolveFrames XOP entry function
@@ -1326,7 +1346,12 @@ typedef struct MedianFramesThreadParams{
 /* ***************************** MedianFramesThread *****************************
  Each thread to median filter a range of frames starts with this function
  Last Modified 2013/07/16 by Jamie Boyd */
-void* MedianFramesThread (void* threadarg){
+#ifdef __GNUC__
+void* MedianFramesThread(void* threadarg) {
+#endif
+#ifdef _WINDOWS_
+    DWORD WINAPI MedianFramesThread(LPVOID threadarg) {
+#endif
     struct MedianFramesThreadParams* p;
     p = (struct MedianFramesThreadParams*) threadarg;
     CountInt frameSize = p->xSize * p->ySize;
@@ -1364,7 +1389,12 @@ void* MedianFramesThread (void* threadarg){
             MedianFramesT ((double*)p->inPutDataStartPtr + startPos,(double*)p->outPutDataStartPtr + startPos, (double*)p->bufferPtr, p->xSize, p->ySize, p->threadFrames, p->kWidth);
             break;
     }
+#ifdef __GNUC__
     return nullptr;
+#endif
+#ifdef _WINDOWS_
+    return 0;
+#endif
 }
 
 /* ***************************** MedianFrames *****************************

@@ -80,7 +80,6 @@ function test_twoPhotonXOP ()
 	testScores [testNum] = timerMicroSeconds/1E6
 	testNum +=1
 	doupdate;sleep/S 2
-end
 	//DoAlert /T="Testing twoPhotonXOP" 0, "Kalman Averaging"
 	// close all 2p graph windows
 	closeTwoPGraphs()

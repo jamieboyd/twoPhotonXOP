@@ -269,7 +269,14 @@ extern "C" int SwapEvenFrame (SwapEvenFrameParamsPtr p){
     int iThread, nThreads;
     CountInt linesPerThread, lastThreadLines;
     SwapEvenThreadParamsPtr paramArrayPtr = nullptr;
+    //**** declare pthreads or HANDLE pointer
+#ifdef __GNUC__
     pthread_t* threadsPtr = nullptr;
+#endif
+#ifdef  _WINDOWS_
+    HANDLE* threadsPtr = nullptr;
+    DWORD* threadIDsPtr = nullptr;     // pointer to an array of DWORD (32-bit unsigned integer) that Windows uses for thread IDs
+#endif
     try {
         // Get handle to input wave. Make sure it exists.
         wavH = p->w1;
@@ -309,12 +316,21 @@ extern "C" int SwapEvenFrame (SwapEvenFrameParamsPtr p){
         lastThreadLines = numLines % nThreads; // last thread gets any left over lines
         paramArrayPtr = (SwapEvenThreadParamsPtr)WMNewPtr(nThreads * sizeof(SwapEvenThreadParams));
         if (paramArrayPtr == nullptr) throw result = MEMFAIL;
-        // make an array of pthread_t
-        threadsPtr =(pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
+#ifdef __GNUC__
+        threadsPtr = (pthread_t*)WMNewPtr(nThreads * sizeof(pthread_t));
         if (threadsPtr == nullptr) throw result = MEMFAIL;
+#endif
+#ifdef _WINDOWS_
+        threadsPtr = (HANDLE*)WMNewPtr(nThreads * sizeof(HANDLE));
+        threadIDsPtr = (DWORD*)WMNewPtr(nThreads * sizeof(DWORD));
+        if ((threadsPtr == nullptr) || (threadIDsPtr == nullptr)) throw result = MEMFAIL;
+#endif
     }catch (int result){
         if (paramArrayPtr != nullptr) WMDisposePtr ((Ptr)paramArrayPtr);
         if (threadsPtr != nullptr) WMDisposePtr ((Ptr)threadsPtr);
+#ifdef _WINDOWS_
+        if (threadIDsPtr != nullptr) WMDisposePtr((Ptr)threadIDsPtr);
+#endif
         p -> result = (double)(result - FIRST_XOP_ERR);
 #ifdef NO_IGOR_ERR
         return (0);
@@ -332,14 +348,30 @@ extern "C" int SwapEvenFrame (SwapEvenFrameParamsPtr p){
         if (iThread == nThreads -1) paramArrayPtr[iThread].numLines += lastThreadLines;
         paramArrayPtr[iThread].lineLen = lineLen;
     }
-    // create the threads
-    for (iThread = 0; iThread < nThreads; iThread++){
-        pthread_create (&threadsPtr[iThread], NULL, SwapEvenThread, (void *) &paramArrayPtr[iThread]);
+
+#ifdef __GNUC__
+    for (iThread = 0; iThread < nThreads; iThread++) {
+        pthread_create(&threadsPtr[iThread], NULL, SwapEvenThread, (void*)&paramArrayPtr[iThread]);
     }
     // Wait till all the threads are finished
-    for (iThread = 0; iThread < nThreads; iThread++){
-        pthread_join (threadsPtr[iThread], NULL);
+    for (iThread = 0; iThread < nThreads; iThread++) {
+        pthread_join(threadsPtr[iThread], NULL);
     }
+#endif
+#ifdef _WINDOWS_
+
+    for (iThread = 0; iThread < nThreads; iThread++) {
+        // create the threads with Default security attributes, Default Stack size, KalmanThread function, pointer to a parameter array, Default creation flags, and a pointer to a DWORD to hold threadId
+        threadsPtr[iThread] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)SwapEvenThread, (LPVOID)&paramArrayPtr[iThread], 0, &threadIDsPtr[iThread]);
+    }
+    // wait for the threads to finish
+    WaitForMultipleObjects(nThreads, threadsPtr, TRUE, INFINITE);
+    // Close thread handles
+    for (iThread = 0; iThread < nThreads; iThread++) {
+        CloseHandle((threadsPtr[iThread]));
+    }
+    WMDisposePtr((Ptr)threadIDsPtr);
+#endif
     // free memory for pThreads Array
     WMDisposePtr ((Ptr)threadsPtr);
     // Free paramaterArray memory
@@ -498,7 +530,7 @@ extern "C" int SwapEvenReverseEven (SwapEvenParamsPtr p){
     char* dataStartPtr;    // Pointer to start of data in input wave. Need to use char for these to use WM function to get data offset
     // Multi threading
     int iThread, nThreads;
-    CountInt framesPerThread, lastThreadFrames;
+    CountInt framesPerThread;
     SwapEvenReverseEvenThreadParamsPtr paramArrayPtr = nullptr;
     pthread_t* threadsPtr = nullptr;
     try {
@@ -522,7 +554,7 @@ extern "C" int SwapEvenReverseEven (SwapEvenParamsPtr p){
         dataStartPtr = (char*)(*wavH) + dataOffset;
         // Multi threading
         nThreads = gNumProcessors;
-        // each thread must get an even number of frames (except possibly last frame)
+        // each thread must get an even number of frames, except possibly last thread
         framesPerThread = numFrames/nThreads;
         if (framesPerThread % 2) framesPerThread --;
         if (framesPerThread < 2){
@@ -535,7 +567,6 @@ extern "C" int SwapEvenReverseEven (SwapEvenParamsPtr p){
                 if (framesPerThread % 2) framesPerThread --;
             }
         }
-        lastThreadFrames = numFrames % nThreads; // last thread gets any leftovere frames
         paramArrayPtr = (SwapEvenReverseEvenThreadParamsPtr)WMNewPtr(nThreads * sizeof(SwapEvenReverseEvenThreadParams));
         if (paramArrayPtr == nullptr) throw result = MEMFAIL;
         // make an array of pthread_t
@@ -557,10 +588,11 @@ extern "C" int SwapEvenReverseEven (SwapEvenParamsPtr p){
         paramArrayPtr[iThread].dataStartPtr = dataStartPtr;
         paramArrayPtr[iThread].startOffset =  iThread * framesPerThread * numLines * lineWidth;
         paramArrayPtr[iThread].numFrames = framesPerThread;
-        if (iThread == nThreads -1) paramArrayPtr[iThread].numFrames += lastThreadFrames;
         paramArrayPtr[iThread].numLines = numLines;
         paramArrayPtr[iThread].lineWidth = lineWidth;
     }
+   paramArrayPtr[nThreads-1].numFrames += numFrames % nThreads;
+
     // create the threads
     for (iThread = 0; iThread < nThreads; iThread++){
         pthread_create (&threadsPtr[iThread], NULL, SwapEvenReverseEvenThread, (void *) &paramArrayPtr[iThread]);
